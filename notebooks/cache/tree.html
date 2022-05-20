@@ -1,0 +1,108 @@
+<html>
+<head>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vis-network@latest/styles/vis-network.css" type="text/css" />
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vis-network@latest/dist/vis-network.min.js"> </script>
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+
+<style type="text/css">
+
+        #mynetwork {
+            width: 100%;
+            height: 750px;
+            background-color: #222222;
+            border: 1px solid lightgray;
+            position: relative;
+            float: left;
+        }
+
+        
+
+        
+
+        
+</style>
+
+</head>
+
+<body>
+<div id = "mynetwork"></div>
+
+
+<script type="text/javascript">
+
+    // initialize global variables.
+    var edges;
+    var nodes;
+    var network; 
+    var container;
+    var options, data;
+
+    
+    // This method is responsible for drawing the graph, returns the drawn network
+    function drawGraph() {
+        var container = document.getElementById('mynetwork');
+        
+        
+
+        // parsing and collecting nodes and edges from the python
+        nodes = new vis.DataSet([{"font": {"color": "white"}, "id": "Occupation+Workclass+Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": "Occupation+Workclass+Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Occupation", "label": "Occupation", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Workclass+Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": "Workclass+Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Workclass", "label": "Workclass", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": "Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Race", "label": "Race", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": "Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Country", "label": "Country", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": "Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Age", "label": "Age", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": "Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Capital Gain", "label": "Capital Gain", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": "Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Education-Num", "label": "Education-Num", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": "Hours per week+Capital Loss+Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Hours per week", "label": "Hours per week", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Capital Loss+Marital Status+Relationship+Sex", "label": "Capital Loss+Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Capital Loss", "label": "Capital Loss", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Marital Status+Relationship+Sex", "label": "Marital Status+Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Marital Status", "label": "Marital Status", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Relationship+Sex", "label": "Relationship+Sex", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Relationship", "label": "Relationship", "shape": "dot", "size": 10}, {"font": {"color": "white"}, "id": "Sex", "label": "Sex", "shape": "dot", "size": 10}]);
+        edges = new vis.DataSet([{"dir": "back", "from": "Occupation+Workclass+Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Occupation", "weight": 1}, {"dir": "back", "from": "Occupation+Workclass+Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Workclass+Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Workclass+Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Workclass", "weight": 1}, {"dir": "back", "from": "Workclass+Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Race", "weight": 1}, {"dir": "back", "from": "Race+Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Country", "weight": 1}, {"dir": "back", "from": "Country+Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Age", "weight": 1}, {"dir": "back", "from": "Age+Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Capital Gain", "weight": 1}, {"dir": "back", "from": "Capital Gain+Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Education-Num", "weight": 1}, {"dir": "back", "from": "Education-Num+Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Hours per week+Capital Loss+Marital Status+Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Hours per week", "weight": 1}, {"dir": "back", "from": "Hours per week+Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Capital Loss+Marital Status+Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Capital Loss", "weight": 1}, {"dir": "back", "from": "Capital Loss+Marital Status+Relationship+Sex", "label": 1, "to": "Marital Status+Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Marital Status+Relationship+Sex", "label": 1, "to": "Marital Status", "weight": 1}, {"dir": "back", "from": "Marital Status+Relationship+Sex", "label": 1, "to": "Relationship+Sex", "weight": 1}, {"dir": "back", "from": "Relationship+Sex", "label": 1, "to": "Relationship", "weight": 1}, {"dir": "back", "from": "Relationship+Sex", "label": 1, "to": "Sex", "weight": 1}]);
+
+        // adding nodes and edges to the graph
+        data = {nodes: nodes, edges: edges};
+
+        var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+        
+        
+
+        
+
+        network = new vis.Network(container, data, options);
+	 
+        
+
+
+        
+
+        return network;
+
+    }
+
+    drawGraph();
+
+</script>
+</body>
+</html>
