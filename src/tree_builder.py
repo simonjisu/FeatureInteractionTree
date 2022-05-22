@@ -82,12 +82,12 @@ class TreeBuilder():
             nodes[best_cmbs] = Node(name=feature_name, value=max_value, children=children)
             return self._build_tree(nodes, scores, done, g_fn)
 
-    def show(self, notebook=False, **kwargs):
+    def show(self, notebook: bool=False, **kwargs):
         nt = self.export_pyviz(notebook=notebook)
         cur_path = Path('.').absolute()
         nt.show(str(cur_path / 'cache' / 'tree.html'))
 
-    def export_pyviz(self, notebook=False, **kwargs):
+    def export_pyviz(self, notebook: bool=False, **kwargs):
         if self.root is None:
             raise KeyError('There is no Node in the tree, try to call `TreeBuilder.build(method)` first')
         
