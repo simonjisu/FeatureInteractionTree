@@ -19,7 +19,12 @@ def flatten(li: List):
 
 class TreeBuilder():
     def __init__(self, shap_interactions: np.ndarray, feature_names: List[str] | pd.Index | None):
-        self.feature_names = np.arange(shap_interactions.shape[-1]) if feature_names is None else feature_names
+        if feature_names is None:
+            self.show_features = False
+            self.feature_names = np.arange(shap_interactions.shape[-1])
+        else:
+            self.show_features = True
+            self.feature_names = feature_names
         self.siv = shap_interactions
         self.g_functions = {
             'sum': g_sum
@@ -66,10 +71,15 @@ class TreeBuilder():
                     scores[cmbs] = self.siv[r, c].sum()
 
             best_cmbs, max_value = g_fn(scores)
-            if self.feature_names is not None:
-                feature_name = '+'.join([str(self.feature_names[i]) for i in flatten(best_cmbs)])
+            # get feature names
+            
+            if len(list(flatten(best_cmbs))) != len(self.feature_names):
+                if self.show_features:
+                    feature_name = '+'.join([str(self.feature_names[i]) for i in flatten(best_cmbs)])
+                else:
+                    feature_name = f'f{len(list(flatten(best_cmbs)))-1}'
             else:
-                feature_name = str(best_cmbs)
+                feature_name = 'all'
             children = []
             for c in best_cmbs:
                 children.append(nodes[c])
