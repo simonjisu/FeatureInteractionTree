@@ -11,3 +11,6 @@ def g_sum(scores: Dict[Tuple[Any] | int, float]) -> Tuple[Tuple[Any] | int, floa
     """    
     l = sorted(scores.items(), key=lambda x: abs(x[1]), reverse=True)
     return l[0]
+
+def g_abs_sum(scores: Dict[Tuple[Any] | int, float]) -> Tuple[Tuple[Any] | int, float]:
+    pass
