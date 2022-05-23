@@ -25,7 +25,12 @@ class TreeBuilder():
         else:
             self.show_features = True
             self.feature_names = feature_names
-        self.siv = shap_interactions
+        if shap_interactions.ndim == 3:
+            # given mulitple instance shap interactions, 
+            # we will calculate by its' average impact value(dont care the direction)
+            self.siv = np.abs(shap_interactions).mean(0)
+        else:
+            self.siv = shap_interactions
         self.g_functions = {
             'sum': g_sum
         }
