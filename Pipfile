@@ -4,6 +4,16 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+numpy = "*"
+pandas = "*"
+anytree = "*"
+scikit-learn = "*"
+xgboost = "*"
+shap = "*"
+graphviz = "*"
+pygraphviz = "*"
+networkx = "*"
+pyvis = "*"
 
 [dev-packages]
 
