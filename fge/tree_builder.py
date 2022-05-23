@@ -72,7 +72,6 @@ class TreeBuilder():
 
             best_cmbs, max_value = g_fn(scores)
             # get feature names
-            
             if len(list(flatten(best_cmbs))) != len(self.feature_names):
                 if self.show_features:
                     feature_name = '+'.join([str(self.feature_names[i]) for i in flatten(best_cmbs)])
