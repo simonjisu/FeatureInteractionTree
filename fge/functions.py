@@ -1,16 +1,29 @@
 from typing import Dict, Tuple, Any, List, Set, Callable
 
-def g_sum(scores: Dict[Tuple[Any] | int, float]) -> Tuple[Tuple[Any] | int, float]:
-    """_summary_
+import itertools
+import numpy as np
+from .utils import flatten
 
-    Args:
-        scores (Dict[Tuple[Any], float]): _description_
+def g_template(
+        nodes_to_run: List[Tuple[Any] | int], 
+        siv_scores: np.ndarray,
+        siv: np.ndarray,
+        scores: Dict[Tuple[Any], float],
+        values: Dict[Tuple[Any], float],
+    ):
+    return NotImplementedError('Template')
 
-    Returns:
-        Tuple[Tuple[Any], float]: _description_
-    """    
-    l = sorted(scores.items(), key=lambda x: abs(x[1]), reverse=True)
-    return l[0]
 
-def g_abs_sum(scores: Dict[Tuple[Any] | int, float]) -> Tuple[Tuple[Any] | int, float]:
-    pass
+def g_base(
+        nodes_to_run: List[Tuple[Any] | int], 
+        siv_scores: np.ndarray,
+        siv: np.ndarray,
+        scores: Dict[Tuple[Any], float],
+        values: Dict[Tuple[Any], float],
+    ):
+    for cmbs in itertools.combinations(nodes_to_run, 2):
+        if cmbs not in scores.keys():
+            r, c = list(zip(*itertools.product(flatten(cmbs), flatten(cmbs))))
+            scores[cmbs] = siv_scores[r, c].sum()
+            values[cmbs] = siv[r, c].sum()
+    return scores, values
