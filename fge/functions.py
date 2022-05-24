@@ -11,6 +11,8 @@ def g_template(
         scores: Dict[Tuple[Any], float],
         values: Dict[Tuple[Any], float],
     ):
+    # should return `scores` and `values`
+    
     return NotImplementedError('Template')
 
 
