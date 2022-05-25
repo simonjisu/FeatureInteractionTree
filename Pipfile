@@ -18,6 +18,7 @@ ipykernel = "*"
 ipywidgets = "*"
 matplotlib = "*"
 seaborn = "*"
+pygad = "*"
 
 [dev-packages]
 
