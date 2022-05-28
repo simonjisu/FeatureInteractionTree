@@ -20,6 +20,7 @@ class TreeBuilder():
         self.score_methods = {
             'base': g_base,
             'abs': g_abs,
+            'abs_interaction': g_abs_only_interaction,
             'ratio': g_ratio,
         }
         self.cache_path = Path('./cache')
@@ -50,6 +51,7 @@ class TreeBuilder():
             method (str): A method to process shap interaction values\n
                 \t- `base`: shap interaction values\n
                 \t- `abs`: absolute shap interaction values\n
+                \t- `abs_interaction`: absolute shape interaction values without main effects\n
                 \t- `ratio`: ratio of absolute shap interaction values to main effects\n
             shap_interactions (np.ndarray): Shap interaction values\n
             feature_names (List[str] | pd.Index | None, optional): Feature names. \n
