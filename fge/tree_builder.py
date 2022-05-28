@@ -1,10 +1,13 @@
 
 import numpy as np
 import pandas as pd
+import itertools
 
 from .functions import *
 from .utils import flatten
+
 from typing import Dict, Tuple, Any, List, Set, Callable
+
 from anytree import Node, RenderTree
 from anytree.exporter import DotExporter
 
@@ -14,9 +17,10 @@ from pathlib import Path
 
 class TreeBuilder():
     def __init__(self):
-
-        self.g_functions = {
-            'base': g_base
+        self.score_methods = {
+            'base': g_base,
+            'abs': g_abs,
+            'ratio': g_ratio,
         }
         self.cache_path = Path('./cache')
         if not self.cache_path.exists():
@@ -29,7 +33,7 @@ class TreeBuilder():
         else:
             tree_str = ''
             for pre, fill, node in RenderTree(self.root):
-                tree_str += f'{pre}{node.name}(v={node.value:.2f}, s={node.score:.2f})\n'
+                tree_str += f'{pre}{node.name}(v={node.value:.4f}, s={node.score:.4f})\n'
         return tree_str
 
     def build(
@@ -37,9 +41,24 @@ class TreeBuilder():
         method: str, 
         shap_interactions: np.ndarray, 
         feature_names: List[str] | pd.Index | None =None,
-        magnitude: bool =True,
+        magnitude: bool=False,
         top_n: int =1,
     ) -> List[Tuple[Any, Node]]:
+        """Build a bottom-up tree
+
+        Args:
+            method (str): A method to process shap interaction values\n
+                \t- `base`: shap interaction values\n
+                \t- `abs`: absolute shap interaction values\n
+                \t- `ratio`: ratio of absolute shap interaction values to main effects\n
+            shap_interactions (np.ndarray): Shap interaction values\n
+            feature_names (List[str] | pd.Index | None, optional): Feature names. \n
+                If given None, it will automatically generate feature name with numbers. Defaults to None.\n
+            magnitude(bool): Calculate node's shap value with absolute values, without considering direction. 
+                Defaults to False.\n
+            top_n (int, optional): Top n scores to select from scores. Defaults to 1.\n
+
+        """    
         # feature settings
         if feature_names is None:
             self.show_features = False
@@ -48,32 +67,34 @@ class TreeBuilder():
             self.show_features = True
             self.feature_names = feature_names
 
-        if shap_interactions.ndim == 3:
-            # ndim == 3 case: global tree
-            build_global = True
-        elif shap_interactions.ndim == 2:
-            # ndim == 2 case: single tree
-            build_global = False
-        else:
-            raise ValueError('number of dimension of `shap_interactions` should be 2 or 3')
-        g_fn = self.g_functions[method]
-        nodes = self._build(shap_interactions, g_fn, magnitude, build_global, top_n)
+        g_fn = self.score_methods[method]
+        nodes = self._build(shap_interactions, g_fn, top_n, magnitude)
         self.root = list(nodes.values())[-1]
         return list(nodes.items())
 
-    def _build(self, shap_interactions: np.ndarray, g_fn: Callable, magnitude: bool, build_global: bool, top_n: int) -> None:
-        if build_global:
-            self.siv_scores = np.abs(shap_interactions).mean(0) if magnitude else shap_interactions.mean(0)
-            # TODO: is it right to show the mean absolute values?
-            # because each instance tree will be built differently
-            # 1. build a single tree using abs(interactions)
-            # 2. build multiple trees and combine them together(how to measure the tree structure similarity?)
-            # currently doing 1st method
-            self.siv = np.abs(shap_interactions).mean(0)  
-        else:
-            self.siv_scores = np.abs(shap_interactions) if magnitude else shap_interactions
-            self.siv = shap_interactions
+    def _build(self, shap_interactions: np.ndarray, g_fn: Callable, top_n: int, magnitude: bool) -> None:
+        """Build a bottom-up tree
 
+        Args:
+            shap_interactions (np.ndarray): shap interaction values\n
+            g_fn (Callable): A method function to process scores\n
+            top_n (int): Top n scores to select from scores\n
+            magnitude(bool): Calculate node's shap value with absolute values, without considering direction. 
+                Defaults to False.\n
+
+        """        
+        if shap_interactions.ndim == 3:
+            # ndim == 3 case: global tree
+            build_global = True
+            self.siv = shap_interactions.mean(0) if not magnitude else np.abs(shap_interactions).mean(0)
+        elif shap_interactions.ndim == 2:
+            # ndim == 2 case: single tree
+            build_global = False
+            self.siv = shap_interactions  if not magnitude else np.abs(shap_interactions)
+        else:
+            raise ValueError('number of dimension of `shap_interactions` should be 2 or 3')
+        
+        self.siv_scores = g_fn(shap_interactions, build_global)
         r_diag, c_diag = np.diag_indices(len(self.feature_names))
         main_effect = self.siv[r_diag, c_diag]
         main_scores = self.siv_scores[r_diag, c_diag]
@@ -97,13 +118,30 @@ class TreeBuilder():
             g_fn: Callable, 
             top_n: int
         ):
+        """Recursive function to build a bottom-up tree
+
+        Args:
+            nodes (Dict[Any, Node]): nodes with combinations of features as key, Node as value. \n
+            scores (Dict[Any, float]): shap interaction scores with combinations of features as key, score as value. \n
+            values (Dict[Any, float]): shap interaction values with combinations of features as key, summation of shap value as value. \n
+            done (Set): record for used nodes. \n
+            g_fn (Callable): a method function to process scores. \n
+            top_n (int): top n scores to select from scores. \n
+
+        """        
         nodes_to_run = [k for k in nodes.keys() if k not in done]
         if len(nodes_to_run) == 1:
             return nodes
         else:
-            # apply g_fn -> update `scores` and `values`
-            scores, values = g_fn(nodes_to_run, siv_scores=self.siv_scores, siv=self.siv, scores=scores, values=values)
-            # can select multiple nodes
+            # update `scores` and `values`
+            scores, values = self._get_scores(
+                nodes_to_run, 
+                siv_scores=self.siv_scores, 
+                siv=self.siv, 
+                scores=scores, 
+                values=values
+            )
+            # select top_n nodes
             selected_cmbs = self._select(scores, top_n=top_n)
             for best_cmbs in selected_cmbs:
                 # create node
@@ -114,10 +152,10 @@ class TreeBuilder():
                 
                 children = [nodes[c] for c in best_cmbs]  
                 nodes[best_cmbs] = Node(name=feature_name, value=values[best_cmbs], score=scores[best_cmbs], children=children)
-
+                
+                # add done and need to remove all impossible options for 'scores'
                 for c in best_cmbs:
                     done.add(c)
-                    # need to remove all impossible options for 'scores'
                     impossible_coor = list(filter(lambda x: c in x, scores.keys()))
                     for coor in impossible_coor:
                         scores.pop(coor, None)
@@ -125,12 +163,44 @@ class TreeBuilder():
 
             return self._build_tree(nodes, scores, values, done, g_fn, top_n)
 
+    def _get_scores(
+        self,
+        nodes_to_run: List[Tuple[Any] | int], 
+        siv_scores: np.ndarray,
+        siv: np.ndarray,
+        scores: Dict[Tuple[Any], float],
+        values: Dict[Tuple[Any], float],
+    ):
+        """Calcuate scores by each combination of trial nodes
+
+        Args:
+            nodes_to_run (List[Tuple[Any]  |  int]): Trial nodes to build a parent node. \n
+            siv_scores (np.ndarray): shap interaction scores. \n
+            siv (np.ndarray): shap interaction values. \n
+            scores (Dict[Tuple[Any], float]): shap interaction scores with combinations of features as key, score as value. \n
+            values (Dict[Tuple[Any], float]): shap interaction values with combinations of features as key, summation of shap value as value. \n
+
+        """    
+        for cmbs in itertools.combinations(nodes_to_run, 2):
+            if cmbs not in scores.keys():
+                r, c = list(zip(*itertools.product(flatten(cmbs), flatten(cmbs))))
+                scores[cmbs] = siv_scores[r, c].sum()
+                values[cmbs] = siv[r, c].sum()
+        return scores, values
+
     def _select(self, scores: Dict[Any, float], top_n: int):
+        """Select combinations of Top N scores 
+
+        Args:
+            scores (Dict[Any, float]): shap interaction scores with combinations of features as key, score as value. \n
+            top_n (int): top n scores to select from scores. \n
+
+        """
         l = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         i = 0
         selected = []
         while (i < top_n) and len(l) > 0:
-            top_cmb, top_score = l.pop(0)
+            top_cmb, _ = l.pop(0)
             selected.append(top_cmb)
             # filter out impossible combinations
             all_impossibles = set()
@@ -171,4 +241,4 @@ class TreeBuilder():
         elif typ == 'png':
             exporter.to_picture(self.cache_path / filename)
         else:
-            raise KeyError('Wrong `typ`')   
+            raise KeyError('Wrong `typ`')

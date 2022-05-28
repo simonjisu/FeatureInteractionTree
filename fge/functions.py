@@ -1,31 +1,57 @@
-from typing import Dict, Tuple, Any, List, Set, Callable
-
-import itertools
 import numpy as np
-from .utils import flatten
 
-def g_template(
-        nodes_to_run: List[Tuple[Any] | int], 
-        siv_scores: np.ndarray,
-        siv: np.ndarray,
-        scores: Dict[Tuple[Any], float],
-        values: Dict[Tuple[Any], float],
-    ):
-    # should return `scores` and `values`
+def g_base(siv: np.ndarray, build_global: bool):
+    """base case
+    scores = absolute shap interaction values 
     
-    return NotImplementedError('Template')
+    `build_global` will work differently compare to `g_abs`, 
+    because it applies the absoulute values after calculate mean values
 
 
-def g_base(
-        nodes_to_run: List[Tuple[Any] | int], 
-        siv_scores: np.ndarray,
-        siv: np.ndarray,
-        scores: Dict[Tuple[Any], float],
-        values: Dict[Tuple[Any], float],
-    ):
-    for cmbs in itertools.combinations(nodes_to_run, 2):
-        if cmbs not in scores.keys():
-            r, c = list(zip(*itertools.product(flatten(cmbs), flatten(cmbs))))
-            scores[cmbs] = siv_scores[r, c].sum()
-            values[cmbs] = siv[r, c].sum()
-    return scores, values
+    Args:
+        siv (np.ndarray): shap interaction values, size of NxFxF, 
+            where F is number of features, N is number of instances 
+        build_global (bool): where building global interaction tree 
+    """    
+    if build_global:
+        siv_scores = siv.mean(0)
+    else:
+        siv_scores = siv
+    return np.abs(siv_scores)
+
+def g_abs(siv: np.ndarray, build_global: bool):
+    """abs case
+    scores = absolute shap interaction values
+
+    `build_global` will work differently compare to `g_base`, 
+    because it applies the absoulute values before calculate mean values
+
+    Args:
+        siv (np.ndarray): shap interaction values, size of NxFxF, 
+            where F is number of features, N is number of instances 
+        build_global (bool): where building global interaction tree 
+    """    
+    if build_global:
+        siv_scores = np.abs(siv).mean(0)
+    else:
+        siv_scores = np.abs(siv)
+    return siv_scores
+
+def g_ratio(siv: np.ndarray, build_global: bool):
+    """ratio case
+    scores = ratio of absolute shap interaction values to main effects
+
+    Args:
+        siv (np.ndarray): shap interaction values, size of NxFxF, 
+            where F is number of features, N is number of instances 
+        build_global (bool): where building global interaction tree 
+    """
+    n_features = siv.shape[-1]
+    r, c = np.diag_indices(n_features)
+    if build_global:
+        siv_scores = np.abs(siv).mean(0)
+    else:
+        siv_scores = np.abs(siv)
+    siv_scores_diag = siv_scores[r, c]
+    siv_scores = siv_scores / siv_scores_diag
+    return siv_scores
