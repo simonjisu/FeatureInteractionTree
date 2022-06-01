@@ -11,6 +11,16 @@ main_path = Path().absolute().parent
 sys.path.append(str(main_path))
 
 def build_model(seed=8, eta=0.3, max_depth=8, subsample=1.0, num_rounds=200):
+    """
+    - MedInc median income in block group
+    - HouseAge median house age in block group
+    - AveRooms average number of rooms per household
+    - AveBedrms average number of bedrooms per household
+    - Population block group population
+    - AveOccup average number of household members
+    - Latitude block group latitude
+    - Longitude block group longitude
+    """
     ca_housing = fetch_california_housing(data_home=main_path / 'data' / 'housing', as_frame=True)
     X, y = ca_housing['data'], ca_housing['target']
     # create a train/test split
