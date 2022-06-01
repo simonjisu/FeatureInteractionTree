@@ -8,12 +8,13 @@ from .utils import flatten
 
 from typing import Dict, Tuple, Any, List, Set, Callable
 
-from anytree import Node, RenderTree
+from anytree import Node, RenderTree, LevelGroupOrderIter
 from anytree.exporter import DotExporter
 
 import networkx as nx
 from pyvis import network as net
 from pathlib import Path
+
 
 class TreeBuilder():
     def __init__(self):
@@ -26,7 +27,24 @@ class TreeBuilder():
         self.cache_path = Path('./cache')
         if not self.cache_path.exists():
             self.cache_path.mkdir()
+        
+        self.reset_tree()
+    
+    def reset_tree(self):
         self.root = None
+        self.levels = None
+        self.depth = None
+        self.levels_reverse = None
+
+    def level_group_order(self):
+        assert self.root is not None, 'not root'
+        self.levels = {}
+        for i, childrens in enumerate(LevelGroupOrderIter(self.root)):
+            self.levels[i] = []
+            for node in childrens:
+                self.levels[i].append(node.name)
+        self.depth = len(self.levels)
+        self.levels_reverse = {self.depth-k-1:v for k, v in self.levels.items()}
 
     def __repr__(self):
         if self.root is None:
@@ -60,7 +78,8 @@ class TreeBuilder():
                 Defaults to False.\n
             top_n (int, optional): Top n scores to select from scores. Defaults to 1.\n
 
-        """    
+        """
+        self.reset_tree()
         # feature settings
         if feature_names is None:
             self.show_features = False
@@ -72,6 +91,7 @@ class TreeBuilder():
         g_fn = self.score_methods[method]
         nodes = self._build(shap_interactions, g_fn, top_n, magnitude)
         self.root = list(nodes.values())[-1]
+        self.level_group_order()
         return list(nodes.items())
 
     def _build(self, shap_interactions: np.ndarray, g_fn: Callable, top_n: int, magnitude: bool) -> None:
