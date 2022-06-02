@@ -2,7 +2,7 @@ import numpy as np
 
 def g_base(siv: np.ndarray, build_global: bool):
     """base case
-    scores = absolute shap interaction values 
+    scores = shap interaction values 
     
     `build_global` will work differently compare to `g_abs`, 
     because it applies the absoulute values after calculate mean values

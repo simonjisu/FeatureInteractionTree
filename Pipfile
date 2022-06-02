@@ -3,6 +3,11 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[[source]]
+url = "https://download.pytorch.org/whl/cu113/"
+verify_ssl = true
+name = "pytorch"
+
 [packages]
 numpy = "*"
 pandas = "*"
@@ -19,6 +24,9 @@ ipywidgets = "*"
 matplotlib = "*"
 seaborn = "*"
 pygad = "*"
+torch = {version = "==1.11.0+cu113", index = "pytorch"}
+torchvision = {version = "==0.12.0+cu113", index = "pytorch"}
+statsmodels = "*"
 
 [dev-packages]
 
