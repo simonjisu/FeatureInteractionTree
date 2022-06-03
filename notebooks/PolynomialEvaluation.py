@@ -1,3 +1,4 @@
+from matplotlib.pyplot import xticks
 import pandas as pd
 import numpy as np
 
@@ -5,7 +6,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error as mse
 from sklearn.preprocessing import PolynomialFeatures
 
-def add_selective_interactions(X, interaction_dict, cut_off_level=1):
+def add_selective_interactions(X_original, interaction_dict, cut_off_level=1):
+    X = X_original.copy()
     for curr_level in range(1, cut_off_level + 1):
         for interaction in interaction_dict[curr_level]:
             feature_names = interaction.split("+")
@@ -19,7 +21,8 @@ def get_selective_polynomial_features(X_train, X_test, interaction_dict, cut_off
     X_test_selective_polynomial = add_selective_interactions(X_test, interaction_dict, cut_off_level)
     return X_train_selective_polynomial, X_test_selective_polynomial
 
-def get_full_polynomial_features(X_train, X_test):
+def get_full_polynomial_features(X_train_original, X_test_original):
+    X_train, X_test = X_train_original.copy(), X_test_original.copy()
     poly = PolynomialFeatures(X_train.shape[1], interaction_only=True, include_bias=False)
     X_train_polynomial, X_test_polynomial = poly.fit_transform(X_train), poly.fit_transform(X_test)
     return X_train_polynomial, X_test_polynomial
