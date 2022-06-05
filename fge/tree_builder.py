@@ -9,12 +9,16 @@ from .utils import flatten
 from typing import Dict, Tuple, Any, List, Set, Callable
 
 from anytree import Node, RenderTree, LevelGroupOrderIter
-from anytree.exporter import DotExporter
+# from anytree.exporter import DotExporter
 
-import networkx as nx
-from pyvis import network as net
+# import networkx as nx
+# from pyvis import network as net
 from pathlib import Path
 
+from copy import deepcopy
+import pygraphviz
+from io import BytesIO
+from PIL import Image as PILImage
 
 class TreeBuilder():
     def __init__(self):
@@ -36,6 +40,10 @@ class TreeBuilder():
         self.depth = None
         self.levels_reverse = None
 
+        # for visualization
+        self._step = -1
+        self._iterations = {}
+
     def level_group_order(self):
         assert self.root is not None, 'not root'
         self.levels = {}
@@ -54,6 +62,10 @@ class TreeBuilder():
             for pre, fill, node in RenderTree(self.root):
                 tree_str += f'{pre}{node.name}(v={node.value:.4f}, s={node.score:.4f})\n'
         return tree_str
+
+    def _apply_record(self, nodes):
+        self._step += 1
+        self._iterations[self._step] = deepcopy(nodes)
 
     def build(
         self, 
@@ -80,6 +92,7 @@ class TreeBuilder():
 
         """
         self.reset_tree()
+        
         # feature settings
         if feature_names is None:
             self.show_features = False
@@ -87,7 +100,6 @@ class TreeBuilder():
         else:
             self.show_features = True
             self.feature_names = feature_names
-
         g_fn = self.score_methods[method]
         nodes = self._build(shap_interactions, g_fn, top_n, magnitude)
         self.root = list(nodes.values())[-1]
@@ -126,8 +138,14 @@ class TreeBuilder():
         values = {}
         done = set() # check need to run it or pass at the next time
 
+
         for i, name in enumerate(self.feature_names):
             nodes[i] = Node(name=name, parent=None, value=main_effect[i], score=main_scores[i])
+
+        # visualization record
+        self._apply_record(nodes)
+
+        # build tree
         nodes = self._build_tree(nodes, scores, values, done, g_fn, top_n)
         return nodes
 
@@ -183,6 +201,8 @@ class TreeBuilder():
                         scores.pop(coor, None)
                         values.pop(coor, None)
 
+                self._apply_record(nodes)
+    
             return self._build_tree(nodes, scores, values, done, g_fn, top_n)
 
     def _get_scores(
@@ -233,34 +253,84 @@ class TreeBuilder():
             l = list(filter(lambda x: x[0] not in all_impossibles, l))
             i += 1
         return selected
-
-    def show(self, notebook=False, **kwargs):
-        nt = self.export_pyvis(notebook=notebook)
-        cur_path = Path('.').absolute()
-        nt.show(str(cur_path / 'cache' / 'tree.html'))
-
-    def export_pyvis(self, notebook=True, **kwargs):
-        if self.root is None:
-            raise KeyError('There is no Node in the tree, try to call `TreeBuilder.build(method)` first')
         
-        filename = 'tree.dot'
-        self._export(typ='dot', filename=filename)
+    def show_tree(self, nodes):
+        G = self._draw_graph(nodes)
+        img = self._display_graph(G)
+        return img
 
-        nx_graph = nx.drawing.nx_agraph.read_dot(self.cache_path / filename)
-        nt = net.Network(height='750px', width='100%', bgcolor='#222222', font_color='white', notebook=notebook)
-        nt.from_nx(nx_graph)
-        return nt
+    def show_step_by_step(self, step: int):
+        return self.show_tree(self._iterations[step])
 
-    def _export(self, typ: str, filename: str):
-        if self.root is None:
-            raise KeyError('There is no Node in the tree, try to call `TreeBuilder.build(method)` first')
-        exporter = DotExporter(
-            self.root, 
-            edgeattrfunc = lambda node, child: "dir=back"
-        )
-        if typ == 'dot':
-            exporter.to_dotfile(self.cache_path / filename)
-        elif typ == 'png':
-            exporter.to_picture(self.cache_path / filename)
-        else:
-            raise KeyError('Wrong `typ`')
+    def _display_graph(self, G):
+        # https://github.com/chebee7i/nxpd/blob/master/nxpd/ipythonsupport.py
+        imgbuf = BytesIO()
+        G.draw(imgbuf, format='png', prog='dot')
+        img = PILImage.open(imgbuf)
+        return img
+
+    def _node_fmt(self, node):
+        return f'{"+".join(node.name.split("/"))}\n value={node.value:.3f}\n score={node.score:.3f}'
+
+    def _draw_graph(self, nodes):
+        kwargs = {
+            'node': {
+                'fontsize': 12,
+                'color': 'blue',
+                'shape': 'box'
+            },
+            'edge': {
+                'arrowsize': 0.5, 
+                'headclip': True, 
+                'tailclip': True
+            }
+        }
+
+        if isinstance(nodes, list):
+            nodes = dict(nodes)
+        G = pygraphviz.AGraph(directed=True)
+        G.graph_attr['rankdir'] = 'TB'
+        G.graph_attr["ordering"] = "out"
+        G.layout(prog='dot')
+
+        for _, node in nodes.items():
+            if node.parent is None:
+                G.add_node(self._node_fmt(node), **kwargs['node'])
+            else:
+                G.add_node(self._node_fmt(node), **kwargs['node'])
+                G.add_node(self._node_fmt(node.parent), **kwargs['node'])
+                G.add_edge(self._node_fmt(node.parent), self._node_fmt(node), **kwargs['edge'])
+        G.add_subgraph([node for node in G.nodes() if "+"not in node], rank="same")
+
+        return G
+
+    # def show(self, notebook=False, **kwargs):
+    #     nt = self.export_pyvis(notebook=notebook)
+    #     cur_path = Path('.').absolute()
+    #     nt.show(str(cur_path / 'cache' / 'tree.html'))
+
+    # def export_pyvis(self, notebook=True, **kwargs):
+    #     if self.root is None:
+    #         raise KeyError('There is no Node in the tree, try to call `TreeBuilder.build(method)` first')
+        
+    #     filename = 'tree.dot'
+    #     self._export(typ='dot', filename=filename)
+
+    #     nx_graph = nx.drawing.nx_agraph.read_dot(self.cache_path / filename)
+    #     nt = net.Network(height='750px', width='100%', bgcolor='#222222', font_color='white', notebook=notebook)
+    #     nt.from_nx(nx_graph)
+    #     return nt
+
+    # def _export(self, typ: str, filename: str):
+    #     if self.root is None:
+    #         raise KeyError('There is no Node in the tree, try to call `TreeBuilder.build(method)` first')
+    #     exporter = DotExporter(
+    #         self.root, 
+    #         edgeattrfunc = lambda node, child: "dir=back"
+    #     )
+    #     if typ == 'dot':
+    #         exporter.to_dotfile(self.cache_path / filename)
+    #     elif typ == 'png':
+    #         exporter.to_picture(self.cache_path / filename)
+    #     else:
+    #         raise KeyError('Wrong `typ`')
