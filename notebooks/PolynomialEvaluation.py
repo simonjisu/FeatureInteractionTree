@@ -4,6 +4,7 @@ import numpy as np
 
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error as mse
+from sklearn.metrics import r2_score
 from sklearn.preprocessing import PolynomialFeatures
 
 def add_selective_interactions(X_original, interaction_dict, cut_off_level=1):
@@ -32,14 +33,17 @@ def get_polynomial_model_performance(X_train, y_train, X_test, y_test):
     poly_regression_model.fit(X_train, y_train)
 
     y_pred = poly_regression_model.predict(X_test)
-    return mse(y_test, y_pred)
+    return r2_score(y_test, y_pred)
 
 def get_performance_decrease(X_train, y_train, X_test, y_test, interaction_dict, cut_off_level, g_func):
     X_train_full, X_test_full = get_full_polynomial_features(X_train, X_test)
+    print(f"no. params full: {X_train_full.shape[1]}\n")
     X_train_selected, X_test_selected = get_selective_polynomial_features(X_train, X_test, interaction_dict, cut_off_level)
+    print(f"no. params selected: {X_train_selected.shape[1]}\n")
     best_performance = get_polynomial_model_performance(X_train_full, y_train, X_test_full, y_test)
     reduced_performance = get_polynomial_model_performance(X_train_selected, y_train, X_test_selected, y_test)
     reduction = best_performance - reduced_performance
+    print(f"Full performance: {best_performance}, Reduced performance: {reduced_performance}\n")
     print(f"For {g_func}, performance reduction was {reduction}")
     return reduction
     
