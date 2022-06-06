@@ -12,13 +12,21 @@ For Ubuntu User:
 $ sudo apt-get install graphviz libgraphviz-dev pkg-config
 ```
 
+# Package Install
+
+For demo purpose user please install package using `pipenv`
+
 ```
 $ pipenv install
 ```
 
-VSCode User: 
+For pip/conda user
 
-if using `notebook=True`, current vscode has some errors on showing html files.
+```
+$ pip install -r requirements.txt
+```
+
+# Requirements
 
 ```
 graphviz
