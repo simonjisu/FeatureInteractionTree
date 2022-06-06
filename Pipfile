@@ -20,6 +20,7 @@ networkx = "*"
 ipykernel = "*"
 ipywidgets = "*"
 matplotlib = "*"
+seaborn = "*"
 streamlit = "*"
 
 [dev-packages]

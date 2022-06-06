@@ -288,7 +288,7 @@ class TreeBuilder():
 
         if isinstance(nodes, list):
             nodes = dict(nodes)
-        G = pygraphviz.AGraph(directed=True)
+        G = pygraphviz.AGraph(directed=False)
         G.graph_attr['rankdir'] = 'TB'
         G.graph_attr["ordering"] = "out"
         G.layout(prog='dot')
