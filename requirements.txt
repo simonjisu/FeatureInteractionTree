@@ -27,7 +27,6 @@ fastjsonschema==2.15.3
 fonttools==4.33.3
 gitdb==4.0.9
 gitpython==3.1.27
-graphviz==0.20
 idna==3.3
 importlib-metadata==4.11.4
 ipykernel==6.13.0
