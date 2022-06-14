@@ -1,9 +1,4 @@
-from matplotlib.pyplot import xticks
-import pandas as pd
-import numpy as np
-
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error as mse
 from sklearn.metrics import r2_score
 from sklearn.preprocessing import PolynomialFeatures
 

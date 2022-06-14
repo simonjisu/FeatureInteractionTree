@@ -95,10 +95,8 @@ class TreeBuilder():
         
         # feature settings
         if feature_names is None:
-            self.show_features = False
             self.feature_names = np.arange(shap_interactions.shape[-1])
         else:
-            self.show_features = True
             self.feature_names = feature_names
         g_fn = self.score_methods[method]
         nodes = self._build(shap_interactions, g_fn, top_n, magnitude)
@@ -300,7 +298,7 @@ class TreeBuilder():
                 G.add_node(self._node_fmt(node), **kwargs['node'])
                 G.add_node(self._node_fmt(node.parent), **kwargs['node'])
                 G.add_edge(self._node_fmt(node.parent), self._node_fmt(node), **kwargs['edge'])
-        G.add_subgraph([node for node in G.nodes() if "+"not in node], rank="same")
+        # G.add_subgraph([node for node in G.nodes() if "+"not in node], rank="same")
 
         return G
 
