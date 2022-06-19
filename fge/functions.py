@@ -73,7 +73,7 @@ def g_abs_only_interaction(siv: np.ndarray, build_global: bool):
     return siv_scores
 
 def g_ratio(siv: np.ndarray, build_global: bool):
-    """ratio case
+    """relative ratio case
     scores = ratio of absolute shap interaction values to main effects
     only considering the interaction term between.
 
@@ -86,7 +86,7 @@ def g_ratio(siv: np.ndarray, build_global: bool):
          A    B
     A   0.5   0.1
     B   0.1   0.3
-    -> 2. Interaction Effect Ratio of (A, B) = 0.1 / (0.5 + 0.3) = 1 / 8 = 0.125
+    -> 2. Interaction Relative Effect Ratio of (A, B) = 0.1 / (0.5 + 0.3) = 1 / 8 = 0.125
     -> 3. Fill all diag indices with 0.
          A    B
     A   0.0   0.125
