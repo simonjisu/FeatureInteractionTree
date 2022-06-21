@@ -26,10 +26,16 @@ For pip/conda user
 $ pip install -r requirements.txt
 ```
 
-Install Error on Windows Users
+Install `pygraphviz` on Windows Users
 
 ```
 pip install --global-option=build_ext --global-option="-IC:/Program Files/Graphviz/include" --global-option="-LC:/Program Files/Graphviz/lib" pygraphviz
+```
+
+Install `pygraphviz` on Linux/MacOS
+
+```
+pip install --global-option=build_ext --global-option="-I/opt/local/include/" --global-option="-L/opt/local/lib/" pygraphviz
 ```
 
 # Requirements
