@@ -21,6 +21,7 @@ ipywidgets = "*"
 matplotlib = "*"
 seaborn = "*"
 streamlit = "*"
+pygraphviz = "*"
 
 [dev-packages]
 pygad = "*"
