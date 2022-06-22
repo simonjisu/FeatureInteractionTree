@@ -7,6 +7,7 @@ from .utils import flatten, c_statistic_harrell
 
 class PolyFitter():
     def __init__(self, dataset, task_type, original_score, max_iter=200):
+        
         self.task_dict = {
             'reg': (LinearRegression, r2_score, dict()),
             'binary': (LogisticRegression, accuracy_score, dict(max_iter=max_iter)),

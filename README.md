@@ -14,6 +14,8 @@ $ sudo apt-get install graphviz libgraphviz-dev pkg-config
 
 # Package Install
 
+## For Linux/MacOS Users
+
 For demo purpose user please install package using `pipenv`
 
 ```
@@ -26,7 +28,13 @@ For pip/conda user
 $ pip install -r requirements.txt
 ```
 
-Install `pygraphviz` on Windows Users
+## For Window Users
+
+```
+$ pip install -r requirements_win.txt
+```
+
+Install `pygraphviz` 
 
 ```
 pip install --global-option=build_ext --global-option="-IC:/Program Files/Graphviz/include" --global-option="-LC:/Program Files/Graphviz/lib" pygraphviz

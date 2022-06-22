@@ -79,7 +79,8 @@ class TreeBuilder():
         self.infos[k]['done'] = [set()]
         for i, name in enumerate(self.feature_names):
             self.infos[k]['nodes'][0][i] = Node(name=name, parent=None, value=main_effect[i], interaction=0.0, k=0)
-
+        
+        
         nodes_to_run = [key for key in self.infos[k]['nodes'][0].keys() if key not in self.infos[k]['done'][0]]
         self.infos[k]['nodes_to_run'] = [nodes_to_run]
         self.infos[k]['performance'] = self.polyfitter.original_score
@@ -119,6 +120,7 @@ class TreeBuilder():
                     new_nodes = deepcopy(nodes)
                     new_done = deepcopy(done)
 
+                    # TODO: 오해의 여지가 있음 ... score를 보여주고, interaction의 크기를 보여줘야할듯
                     value, interaction = self.get_value_and_interaction(cmbs)
                     
                     feature_name = '+'.join([str(self.feature_names[i]) for i in flatten(cmbs)])
@@ -141,7 +143,8 @@ class TreeBuilder():
                 self.infos[k]['performance'].append(self.infos[0]['performance'] - performance)
 
             sorted_idx = np.argsort(self.infos[k]['performance'])#[::-1]
-
+            # TODO: GA way insert random mutation
+            # TODO: train data 로 트리 만들고 fit?
             self.infos[k]['nodes_to_run'] = np.array(self.infos[k]['nodes_to_run'], dtype=object)[sorted_idx[:n_select]].tolist()
             self.infos[k]['nodes'] = np.array(self.infos[k]['nodes'], dtype=object)[sorted_idx[:n_select]].tolist()
             self.infos[k]['done'] = np.array(self.infos[k]['done'], dtype=object)[sorted_idx[:n_select]].tolist()
@@ -157,7 +160,7 @@ class TreeBuilder():
         filtered = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         if existed_cmbs is not None:
             filtered = [(key, value) for key, value in filtered if key not in existed_cmbs]
-        return list(map(lambda x: x[0], filtered[:int(len(filtered)/2)]))
+        return list(map(lambda x: x[0], filtered[:int(len(filtered)/2)])) # 무조건 절반 살릴 필요는 없음
 
     def get_value_and_interaction(self, cmbs):
         r_l, c_l = np.tril_indices(self.n_features, -1)

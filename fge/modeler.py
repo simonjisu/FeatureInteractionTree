@@ -23,7 +23,8 @@ class ModelBuilder():
             'boston': (boston, 'reg'), 
             'nhanesi': (nhanesi, 'survival'), # TODO: need to dealwith NaN values to fit poly
             'crime': (communitiesandcrime, 'reg'),  # TODO: need preprocessing y -> proportion of population
-            'california': (fetch_california_housing, 'reg')
+            'california': (fetch_california_housing, 'reg'),
+            'lending_club': ()
         }
         self.loader, self.task_type = self.loaders[dataset_name]
 

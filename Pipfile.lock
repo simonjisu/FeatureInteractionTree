@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "13789a0b3e0702542d95ab7666775dd8fd17fea321d328f2b0f34ac5acaffaf7"
+            "sha256": "11cdb791682e85f6159af00ae437dd05cab4dac1fde22ba5a1c1ed0f4d35e912"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -288,6 +288,14 @@
             ],
             "version": "==2.15.3"
         },
+        "filelock": {
+            "hashes": [
+                "sha256:37def7b658813cda163b56fc564cdc75e86d338246458c4c28ae84cabefa2404",
+                "sha256:3a0fd85166ad9dbab54c9aec96737b744106dc5f15c0b09a6744a445299fcf04"
+            ],
+            "markers": "python_version >= '3.7'",
+            "version": "==3.7.1"
+        },
         "fonttools": {
             "hashes": [
                 "sha256:c0fdcfa8ceebd7c1b2021240bd46ef77aa8e7408cf10434be55df52384865f8e",
@@ -295,6 +303,13 @@
             ],
             "markers": "python_version >= '3.7'",
             "version": "==4.33.3"
+        },
+        "gdown": {
+            "hashes": [
+                "sha256:18fc3a4da4a2273deb7aa29c7486be4df3919d904158ad6a6a3e25c8115470d7"
+            ],
+            "index": "pypi",
+            "version": "==4.4.0"
         },
         "gitdb": {
             "hashes": [
@@ -1035,6 +1050,14 @@
             "markers": "python_version >= '3.7'",
             "version": "==0.18.1"
         },
+        "pysocks": {
+            "hashes": [
+                "sha256:08e69f092cc6dbe92a0fdd16eeb9b9ffbc13cadfe5ca4c7bd92ffb078b293299",
+                "sha256:2725bd0a9925919b9b51739eea5f9e2bae91e83288108a9ad338b2e3a4435ee5",
+                "sha256:3f8804571ebe159c380ac6de37643bb4685970655d3bba243530d6558b799aa0"
+            ],
+            "version": "==1.7.1"
+        },
         "python-dateutil": {
             "hashes": [
                 "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86",
@@ -1122,6 +1145,9 @@
             "version": "==23.2.0"
         },
         "requests": {
+            "extras": [
+                "socks"
+            ],
             "hashes": [
                 "sha256:bc7861137fbce630f17b03d3ad02ad0bf978c844f3536d0edda6499dafce2b6f",
                 "sha256:d568723a7ebd25875d8d1eaf5dfa068cd2fc8194b2e483d7b1f7c81918dbec6b"
@@ -1792,6 +1818,9 @@
             "version": "==2022.1"
         },
         "requests": {
+            "extras": [
+                "socks"
+            ],
             "hashes": [
                 "sha256:bc7861137fbce630f17b03d3ad02ad0bf978c844f3536d0edda6499dafce2b6f",
                 "sha256:d568723a7ebd25875d8d1eaf5dfa068cd2fc8194b2e483d7b1f7c81918dbec6b"
