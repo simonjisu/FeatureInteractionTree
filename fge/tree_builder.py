@@ -1,35 +1,34 @@
 
 import numpy as np
-import pandas as pd
+import shap
 import itertools
+import time
 
 from .functions import *
 from .utils import flatten
 from .fitter import PolyFitter
+from .dataset import Dataset
 
-from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any
 from copy import deepcopy
 from collections import defaultdict
 from tqdm import tqdm
-
-import pygraphviz
-from io import BytesIO
-from PIL import Image as PILImage
-
-from anytree import Node, RenderTree, LevelGroupOrderIter
-from copy import deepcopy
+from anytree import Node
+from .interaction_tree import ShapInteractionTree
 
 class TreeBuilder():
-    def __init__(self, dataset: Dict[str, Any], task_type: str, original_score: None|float=None):
-        
+    def __init__(self, model, dataset, original_score: None|float=None):
+        """Interaction Tree Builder"""
+        self.explainer = shap.TreeExplainer(model)
+        self.dataset = dataset
+        self.original_score = original_score
         self.score_methods = {
             'base': g_base,
             'abs': g_abs,
             'abs_interaction': g_abs_only_interaction,
             'ratio': g_ratio,
         }
-        self.polyfitter = PolyFitter(dataset, task_type, original_score)
+        self.polyfitter = PolyFitter(self.dataset.task_type, self.dataset.data, self.original_score)
 
     def reset_tree(self, verbose):
         self.root = None
@@ -37,12 +36,36 @@ class TreeBuilder():
         self.logger = tqdm(desc='Building Tree')
         self.verbose = verbose
 
+    def shap_interaction_values(self, group_id: None | int=None):
+        start = time.time()
+        print('Getting Interaction Values via SHAP package, might take a while...')
+        if group_id is None:
+            # run all data
+            # self.polyfitter = PolyFitter(self.dataset.task_type, self.dataset.data, self.original_score)
+            print(f'Processing: # of data = {len(self.dataset.data["X_train"])}, # of features = {len(self.dataset.feature_names)}')
+            shap_interactions = self.explainer.shap_interaction_values(self.dataset.data['X_train'])
+        else:
+            # run seperate group
+            # polifitter should mimic subset of group data to build tree
+            data = self.dataset[group_id]
+            # self.polyfitter = PolyFitter(self.dataset.task_type, data, self.original_score)
+
+            print(f'Processing: # of data = {len(data["X_train"])}, # of features = {len(self.dataset.feature_names)}')
+            shap_interactions = self.explainer.shap_interaction_values(data['X_train'])
+        end = time.time()
+        time_cost = end - start
+        mins = int(time_cost//60)
+        secs = time_cost - mins*60
+        print(f'Cost time: {mins:d} mins {secs:.2f} secs')
+        return shap_interactions
+        
     def build(
             self, 
             score_method: str, 
             shap_interactions: np.ndarray, 
             n_select: int=5, 
             max_iter: int | None=None,
+            rt_only_best: bool=True,
             verbose: bool=False
         ):
         self.reset_tree(verbose)
@@ -54,11 +77,11 @@ class TreeBuilder():
         if shap_interactions.ndim == 3:
             # ndim == 3 case: global tree
             build_global = True
-            self.siv = shap_interactions.mean(0)
+            # self.siv = shap_interactions.mean(0)
         elif shap_interactions.ndim == 2:
             # ndim == 2 case: single tree
             build_global = False
-            self.siv = shap_interactions
+            # self.siv = shap_interactions
         else:
             raise ValueError('number of dimension of `shap_interactions` should be 2 or 3')
 
@@ -74,21 +97,23 @@ class TreeBuilder():
         
         # initialize: main effects
         r_diag, c_diag = np.diag_indices(len(self.feature_names))
-        main_effect = self.siv[r_diag, c_diag]
+        main_effect = siv_scores[r_diag, c_diag]
         self.infos[k]['nodes'] = [dict()]
         self.infos[k]['done'] = [set()]
         for i, name in enumerate(self.feature_names):
-            self.infos[k]['nodes'][0][i] = Node(name=name, parent=None, value=main_effect[i], interaction=0.0, k=0)
-        
+            self.infos[k]['nodes'][0][i] = Node(
+                name=name, parent=None, score=main_effect[i], interaction=0.0, k=0, drop=0.0
+            )
         
         nodes_to_run = [key for key in self.infos[k]['nodes'][0].keys() if key not in self.infos[k]['done'][0]]
         self.infos[k]['nodes_to_run'] = [nodes_to_run]
         self.infos[k]['performance'] = self.polyfitter.original_score
         self._build(siv_scores, n_select, k+1)
         self.logger.close()
-        trees = [(tuple(x.items())[-1][0], ShapInteractionTree(root=tuple(x.items())[-1][1])) 
-            for x in list(self.infos.items())[-1][1]['nodes']]
-        return trees
+        if rt_only_best:
+            return self._get_best_tree()
+        else:
+            return self._get_all_trees()
         
     def _build(self, siv_scores, n_select, k):
         self.logger.update(1)
@@ -114,22 +139,33 @@ class TreeBuilder():
                 nodes = prev_nodes.pop(0)
                 done = prev_dones.pop(0)
                 existed_cmbs = list(filter(lambda x: isinstance(x, tuple), nodes.keys()))
-                scores = self.get_scores(nodes_to_run, siv_scores)
+                scores = self.get_scores(siv_scores, nodes_to_run)
                 filtered_keys = self.filter_scores(scores, existed_cmbs)
                 for cmbs in filtered_keys:
                     new_nodes = deepcopy(nodes)
                     new_done = deepcopy(done)
 
-                    # TODO: 오해의 여지가 있음 ... score를 보여주고, interaction의 크기를 보여줘야할듯
-                    value, interaction = self.get_value_and_interaction(cmbs)
+                    value, interaction = self.get_value_and_interaction(siv_scores, cmbs)
                     
                     feature_name = '+'.join([str(self.feature_names[i]) for i in flatten(cmbs)])
                     
                     children = [new_nodes[c] for c in cmbs]
-                    new_nodes[cmbs] = Node(name=feature_name, value=value, interaction=interaction, children=children, k=k)
+                    new_nodes[cmbs] = Node(
+                        name=feature_name, 
+                        score=value, 
+                        interaction=interaction, 
+                        children=children, 
+                        k=k,
+                        drop=0.0
+                    )
+                    performance = self.polyfitter.fit_selected(new_nodes.keys())#, self.feature_names)
+                    performance_drop = self.infos[0]['performance'] - performance
+                    new_nodes[cmbs].drop = performance_drop
+
+                    self.infos[k]['performance'].append(performance_drop)
                     self.infos[k]['nodes'].append(new_nodes)
 
-                    # add impossibles
+                    # add impossibles cmbs
                     for c in cmbs:
                         new_done.add(c)
 
@@ -138,13 +174,13 @@ class TreeBuilder():
                     self.infos[k]['nodes_to_run'].append(new_nodes_to_run)
 
             # eval
-            for nodes in self.infos[k]['nodes']:
-                performance = self.polyfitter.fit_selected(nodes, self.feature_names)
-                self.infos[k]['performance'].append(self.infos[0]['performance'] - performance)
+            # for nodes in self.infos[k]['nodes']:
+            #     performance = self.polyfitter.fit_selected(nodes.keys(), self.feature_names)
+            #     performance_drop = self.infos[0]['performance'] - performance
+            #     self.infos[k]['performance'].append(performance_drop)
 
             sorted_idx = np.argsort(self.infos[k]['performance'])#[::-1]
             # TODO: GA way insert random mutation
-            # TODO: train data 로 트리 만들고 fit?
             self.infos[k]['nodes_to_run'] = np.array(self.infos[k]['nodes_to_run'], dtype=object)[sorted_idx[:n_select]].tolist()
             self.infos[k]['nodes'] = np.array(self.infos[k]['nodes'], dtype=object)[sorted_idx[:n_select]].tolist()
             self.infos[k]['done'] = np.array(self.infos[k]['done'], dtype=object)[sorted_idx[:n_select]].tolist()
@@ -162,17 +198,17 @@ class TreeBuilder():
             filtered = [(key, value) for key, value in filtered if key not in existed_cmbs]
         return list(map(lambda x: x[0], filtered[:int(len(filtered)/2)])) # 무조건 절반 살릴 필요는 없음
 
-    def get_value_and_interaction(self, cmbs):
+    def get_value_and_interaction(self, siv_scores, cmbs):
         r_l, c_l = np.tril_indices(self.n_features, -1)
         cmbs_flattend = list(flatten(cmbs))
         cmbs_idx = np.arange(len(r_l))[np.isin(r_l, cmbs_flattend) & np.isin(c_l, cmbs_flattend)]
 
         r, c = list(zip(*itertools.product(flatten(cmbs), flatten(cmbs))))
-        value = self.siv[r, c].sum()
-        interaction = self.siv[r_l, c_l][cmbs_idx].sum()
+        value = siv_scores[r, c].sum()
+        interaction = siv_scores[r_l, c_l][cmbs_idx].sum()
         return value, interaction
 
-    def get_scores(self, nodes_to_run, siv_scores):
+    def get_scores(self, siv_scores, nodes_to_run):
         scores = {}
         for cs in itertools.combinations(nodes_to_run, 2):
             if cs not in scores.keys():
@@ -180,110 +216,21 @@ class TreeBuilder():
                 scores[cs] = siv_scores[r, c].sum()
         return scores
 
-class ShapInteractionTree():
-    def __init__(self, root):
-        assert isinstance(root, Node), f'no a proper type of `root`: should be {Node}'
-        self.root = root
-        self.levels = None
-        self.depth = None
-        self.levels_reverse = None
-        self.level_group_order()
+    def _extract_root(self, node_record):
+        root = list(node_record.values())[-1]
+        return root
 
-        self.colors = {
-            'blue': '#2F33BD', 'red': '#C9352C', 'black': '#000000'
-        }
-        self.show_kwargs = {
-            'node':{
-                1: {'fontname': 'Arial', 'fontsize': 12, 'color': self.colors['red'], 'shape': 'box'},
-                0: {'fontname': 'Arial', 'fontsize': 12, 'color': self.colors['black'], 'shape': 'box'},
-                -1: {'fontname': 'Arial', 'fontsize': 12, 'color': self.colors['blue'], 'shape': 'box'}
-            },
-            'edge': {
-                1: {'color': self.colors['red'], 'arrowsize': 0.5, 'headclip': True, 'tailclip': True},
-                0: {'color': self.colors['black'], 'arrowsize': 0.5, 'headclip': True, 'tailclip': True},
-                -1: {'color': self.colors['blue'], 'arrowsize': 0.5, 'headclip': True, 'tailclip': True}
-            }
-        }
+    def _get_all_trees(self):
+        last_records = list(self.infos.values())[-1]
+        trees = []
+        for node_record in last_records['nodes']:
+            root = self._extract_root(node_record)
+            trees.append(ShapInteractionTree(root))
+        return trees
 
-    def level_group_order(self):
-        self.levels = {}
-        for i, childrens in enumerate(LevelGroupOrderIter(self.root)):
-            self.levels[i] = []
-            for node in childrens:
-                self.levels[i].append(node.name)
-        self.depth = len(self.levels)
-        self.levels_reverse = {self.depth-k-1:v for k, v in self.levels.items()}
-
-    def __repr__(self):
-        tree_str = ''
-        for pre, fill, node in RenderTree(self.root):
-            tree_str += f'{pre}{node.name}(v={node.value:.4f}, i={node.interaction:.4f})\n'
-        return tree_str
-  
-    def show_tree(self, feature_names=None): 
-        G = self._draw_graph(feature_names)
-        img = self._display_graph(G)
-        return img
-
-    def show_step_by_step(self, step: int):
-        return self.show_tree(self._iterations[step])
-
-    def _display_graph(self, G):
-        # https://github.com/chebee7i/nxpd/blob/master/nxpd/ipythonsupport.py
-        imgbuf = BytesIO()
-        G.draw(imgbuf, format='png', prog='dot')
-        img = PILImage.open(imgbuf)
-        return img
-
-    def _fmt(self, node, feature_names=None):
-        s = '< <TABLE BORDER="0" ALIGN="CENTER">'
-        if feature_names is not None:
-            fs = [feature_names[int(n)] for n in node.name.split("+")]
-        else:
-            fs = node.name.split("/")
-        fs_str = '' if node.k == 0 else f'({node.k}) '
-        fs_str += f'{fs[0]} + ... + {fs[-1]}' if len(fs) > 2 else "+".join(fs)
-        s += f'<TR><TD><B>{fs_str}</B></TD></TR>'
-        s += f'<TR><TD>value={node.value:.4f}</TD></TR>'
-        if node.interaction != 0.0:
-            s += f'<TR><TD>interaction={node.interaction:.4f}</TD></TR>'
-        return s + '</TABLE> >'
-
-    def _draw_graph(self, feature_names=None, i=None):
-        # http://www.graphviz.org/doc/info/attrs.html#k:style
-        G = pygraphviz.AGraph(directed=True)
-        G.graph_attr['rankdir'] = 'BT'
-        G.graph_attr["ordering"] = "out"
-        G.layout(prog='dot')
-
-        for *_, node in RenderTree(self.root):
-            if node.parent is None:
-                # root
-                v_key, _ = self._get_node_edge_key(node, parent=None)
-                G.add_node(node, label=self._fmt(node, feature_names), **self.show_kwargs['node'][v_key])
-            else:
-                v_key, e_key = self._get_node_edge_key(node, parent=node.parent)
-                G.add_node(node, label=self._fmt(node, feature_names), **self.show_kwargs['node'][v_key])
-                G.add_edge(node, node.parent, **self.show_kwargs['edge'][e_key])
-        # G.add_subgraph([node for node in G.nodes() if "+"not in node], rank="same")
-
-        return G
-
-    def _get_node_edge_key(self, node, parent=None):
-        if node.value < 0.0:
-            v_key = -1
-        elif node.value > 0.0:
-            v_key = 1
-        else:
-            v_key = 0
-        
-        if parent is not None:    
-            if parent.interaction < 0.0:
-                e_key = -1
-            elif parent.interaction > 0.0:
-                e_key = 1
-            else:
-                e_key = 0
-        else:
-            e_key = None
-        return v_key, e_key
+    def _get_best_tree(self):
+        last_records = list(self.infos.values())[-1]
+        best_idx = np.argmax(last_records['performance'])
+        node_record = last_records['nodes'][best_idx]
+        root = self._extract_root(node_record)
+        return ShapInteractionTree(root)
