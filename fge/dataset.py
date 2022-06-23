@@ -24,6 +24,7 @@ class Dataset():
             X, y = ds['data'], ds['target'].to_numpy().reshape(-1)
         else:
             X, y = self.loader()
+        X = self._preprocess_X(dataset_name, X)
         y = self._preprocess_y(y)
         self._generate_cates(y)
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=seed)
@@ -37,6 +38,12 @@ class Dataset():
             'train': self._generate_groups(X_train, y_train),
             'test': self._generate_groups(X_test, y_test)
         }
+
+    def _preprocess_X(self, dataset_name, X):
+        if dataset_name == 'nhanesi':
+            X = X.drop(columns=X.columns[X.isnull().sum() > 0])
+            
+        return X
 
     def _preprocess_y(self, y):
         if self.task_type == 'binary':
@@ -77,6 +84,3 @@ class Dataset():
             'y_train': train_data[i]['y'], 
             'y_test': test_data[i]['y']
         } 
-
-    def preprocess(self, dataset_name):
-        pass

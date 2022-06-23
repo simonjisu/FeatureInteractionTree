@@ -64,6 +64,7 @@ class TreeBuilder():
             score_method: str, 
             shap_interactions: np.ndarray, 
             n_select: int=5, 
+            r_filter: float = 0.5,  # filter ratio
             max_iter: int | None=None,
             rt_only_best: bool=True,
             verbose: bool=False
@@ -77,11 +78,9 @@ class TreeBuilder():
         if shap_interactions.ndim == 3:
             # ndim == 3 case: global tree
             build_global = True
-            # self.siv = shap_interactions.mean(0)
         elif shap_interactions.ndim == 2:
             # ndim == 2 case: single tree
             build_global = False
-            # self.siv = shap_interactions
         else:
             raise ValueError('number of dimension of `shap_interactions` should be 2 or 3')
 
@@ -104,18 +103,24 @@ class TreeBuilder():
             self.infos[k]['nodes'][0][i] = Node(
                 name=name, parent=None, score=main_effect[i], interaction=0.0, k=0, drop=0.0
             )
-        
-        nodes_to_run = [key for key in self.infos[k]['nodes'][0].keys() if key not in self.infos[k]['done'][0]]
-        self.infos[k]['nodes_to_run'] = [nodes_to_run]
+
+        # TODO: Select Random Nodes to start? or Start from largest Interactions? or Main Effects?
+        # try to filter start nodes with larger main effect, since they have larger impact
+        nodes_to_run = [(key, n.score) for key, n in self.infos[k]['nodes'][0].items() if key not in self.infos[k]['done'][0]]
+        sorted_nodes_to_run = sorted(nodes_to_run, key=lambda x: x[1], reverse=True)
+        filtered_nodes_to_run = list(map(lambda x: x[0], sorted_nodes_to_run[:int(len(sorted_nodes_to_run)*r_filter)]))
+        #
+        self.infos[k]['nodes_to_run'] = [filtered_nodes_to_run]
         self.infos[k]['performance'] = self.polyfitter.original_score
-        self._build(siv_scores, n_select, k+1)
+        self._build(siv_scores, n_select, r_filter, k+1)
         self.logger.close()
+
         if rt_only_best:
             return self._get_best_tree()
         else:
             return self._get_all_trees()
         
-    def _build(self, siv_scores, n_select, k):
+    def _build(self, siv_scores, n_select, r_filter, k):
         self.logger.update(1)
         prev_nodes_to_run = deepcopy(self.infos[k-1]['nodes_to_run'])
         prev_nodes = deepcopy(self.infos[k-1]['nodes'])
@@ -125,9 +130,7 @@ class TreeBuilder():
             return 
         else:
             if self.verbose:
-                print(f'Current Step: {k}')
-                for n in prev_nodes_to_run:
-                    print(f'Nodes to Run: {n}')
+                print(f'Current Step: {k}: # to run {len(prev_nodes_to_run)*len(prev_nodes_to_run[0])}')
             if self.infos.get(k) is None:
                 self.infos[k]['nodes'] = []
                 self.infos[k]['done'] = []
@@ -140,8 +143,10 @@ class TreeBuilder():
                 done = prev_dones.pop(0)
                 existed_cmbs = list(filter(lambda x: isinstance(x, tuple), nodes.keys()))
                 scores = self.get_scores(siv_scores, nodes_to_run)
-                filtered_keys = self.filter_scores(scores, existed_cmbs)
-                for cmbs in filtered_keys:
+                filtered_keys = self.filter_scores(scores, r_filter, existed_cmbs)
+                if self.verbose:
+                    print(f'Number of filtered keys: {len(filtered_keys)}')
+                for cmbs in tqdm(filtered_keys, total=len(filtered_keys)):
                     new_nodes = deepcopy(nodes)
                     new_done = deepcopy(done)
 
@@ -188,15 +193,16 @@ class TreeBuilder():
             
             if self.verbose:
                 print(f'Scores: {[round(x, 4) for x in self.infos[k]["performance"]]}')
-            return self._build(siv_scores, n_select, k+1)
+            return self._build(siv_scores, n_select, r_filter, k+1)
     
-    def filter_scores(self, scores, existed_cmbs=None):
+    def filter_scores(self, scores, r_filter, existed_cmbs=None):
         if len(scores) == 1:
             return list(scores.keys())
         filtered = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         if existed_cmbs is not None:
             filtered = [(key, value) for key, value in filtered if key not in existed_cmbs]
-        return list(map(lambda x: x[0], filtered[:int(len(filtered)/2)])) # 무조건 절반 살릴 필요는 없음
+        n_filterd = int(r_filter * len(filtered))
+        return list(map(lambda x: x[0], filtered[:n_filterd]))
 
     def get_value_and_interaction(self, siv_scores, cmbs):
         r_l, c_l = np.tril_indices(self.n_features, -1)
