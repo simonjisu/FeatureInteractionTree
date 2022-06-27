@@ -1,4 +1,5 @@
 
+from mimetypes import init
 import numpy as np
 import shap
 import itertools
@@ -69,14 +70,20 @@ class TreeBuilder():
             n_select_scores: int=5,
             n_select_performance: int=5, 
             max_iter: int | None=None,
-            initialize: str | None='random',
+            initialize: str | None='random',  # random / sort / full
+            filter_method: str = 'random',  # random / sort
             rt_only_best: bool=True,
             verbose: bool=False
         ):
+        """
+        filter_method(sort) + score_method(only interaction method: abs_interaction, ratio)
+        """
+
         self.reset_tree(verbose)
         # feature settings
         self.feature_names = np.arange(shap_interactions.shape[-1])
-
+        self.initialize = initialize
+        self.filter_method = filter_method
         if shap_interactions.ndim == 3:
             # ndim == 3 case: global tree
             build_global = True
@@ -117,9 +124,11 @@ class TreeBuilder():
             nodes_to_run = [(key, n.score) for key, n in self.infos[k]['nodes'][0].items()] # [(key, n.score) for key, n in self.infos[k]['nodes'][0].items() if key not in self.infos[k]['done'][0]]
             sorted_nodes_to_run = sorted(nodes_to_run, key=lambda x: x[1], reverse=True)
             filtered_nodes_to_run = list(map(lambda x: x[0], sorted_nodes_to_run[:n_select_scores]))
-        else:
+        elif initialize == 'full':
             filtered_nodes_to_run = list(self.feature_names)
-        
+        else:
+            raise KeyError('`initialize` should be "random", "sort" or "full"')
+
         self.infos[k]['nodes_to_run'] = [filtered_nodes_to_run]
         self.infos[k]['performance'] = self.polyfitter.original_score
         self._build(siv_scores, n_select_scores, n_select_performance, k+1)
@@ -153,7 +162,6 @@ class TreeBuilder():
                 nodes_to_run = prev_nodes_to_run.pop(0)
                 nodes = prev_nodes.pop(0)
                 
-                # cannot check tuple in tuple if don't turn into string
                 scores = self.get_scores(siv_scores, nodes_to_run)
                 filtered_keys = self.filter_scores(scores, n_select_scores)
                 if self.verbose:
@@ -200,17 +208,28 @@ class TreeBuilder():
     def filter_scores(self, scores, n_select_scores):
         if len(scores) == 1:
             return list(scores.keys())
-        dup = set()
-        n = 0
-        filtered = []
-        while (n < n_select_scores) and (len(dup) < len(scores)):
-            c = random.choice(list(scores.keys()))
-            if c in dup:
-                continue
-            else:
-                dup.add(c)
+
+        if self.filter_method == 'random':
+            scores_to_run = deepcopy(list(scores.keys()))
+            # dup = set()
+            n = 0
+            filtered = []
+            while (n < n_select_scores) and scores_to_run: #(len(dup) < len(scores)):
+                c = random.choice(scores_to_run)
+                scores_to_run.remove(c)
                 filtered.append(c)
-            n += 1
+                # if c in dup:
+                #     continue
+                # else:
+                #     dup.add(c)
+                #     filtered.append(c)
+                n += 1
+        elif self.filter_method == 'sort':
+            filtered = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+            filtered = list(map(lambda x: x[0], filtered[:n_select_scores]))
+        else:
+            raise KeyError('`filter_method` should be "random" or "sort"')
+
         return filtered
 
     def get_value_and_interaction(self, siv_scores, cmbs):
