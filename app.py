@@ -87,7 +87,7 @@ st.set_page_config(layout="wide")
 #     * R2 square on Test Set: 0.8453
 # ''')
 
-@st.cache(hash_funcs={ShapInteractionTree: hash, xgb.Booster: hash, Dataset:hash}, suppress_st_warning=True)
+@st.cache(hash_funcs={shap.Explainer: hash, ShapInteractionTree: hash, xgb.Booster: hash, Dataset:hash}, suppress_st_warning=True)
 def load_cache(cache_path):
     datasets = ['titanic', 'adult', 'boston', 'california']
     cache = {}
