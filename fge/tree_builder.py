@@ -1,5 +1,3 @@
-
-from mimetypes import init
 import numpy as np
 import shap
 import itertools
@@ -12,7 +10,7 @@ from .utils import flatten
 from .fitter import PolyFitter
 from .interaction_tree import ShapInteractionTree
 
-from typing import Dict, Any
+from typing import Dict, Any, List
 from copy import deepcopy
 from collections import defaultdict
 from tqdm import tqdm
@@ -45,14 +43,12 @@ class TreeBuilder():
         print('Getting Interaction Values via SHAP package, might take a while...')
         if group_id is None:
             # run all data
-            # self.polyfitter = PolyFitter(self.dataset.task_type, self.dataset.data, self.original_score)
             print(f'Processing: # of data = {len(self.dataset.data["X_train"])}, # of features = {len(self.dataset.feature_names)}')
             shap_interactions = self.explainer.shap_interaction_values(self.dataset.data['X_train'])
         else:
             # run seperate group
             # polifitter should mimic subset of group data to build tree
             data = self.dataset[group_id]
-            # self.polyfitter = PolyFitter(self.dataset.task_type, data, self.original_score)
 
             print(f'Processing: # of data = {len(data["X_train"])}, # of features = {len(self.dataset.feature_names)}')
             shap_interactions = self.explainer.shap_interaction_values(data['X_train'])
@@ -68,10 +64,10 @@ class TreeBuilder():
             score_method: str, 
             shap_interactions: np.ndarray, 
             n_select_scores: int=5,
-            n_select_performance: int=5, 
+            n_select_gain: int=5, 
             max_iter: int | None=None,
-            initialize: str | None='random',  # random / sort / full
-            filter_method: str = 'random',  # random / sort
+            nodes_to_run_method: str | None='random',  # random / sort / full
+            filter_method: str = 'random',  # random / sort / prob
             rt_only_best: bool=True,
             verbose: bool=False
         ):
@@ -82,7 +78,7 @@ class TreeBuilder():
         self.reset_tree(verbose)
         # feature settings
         self.feature_names = np.arange(shap_interactions.shape[-1])
-        self.initialize = initialize
+        self.nodes_to_run_method = nodes_to_run_method
         self.filter_method = filter_method
         if shap_interactions.ndim == 3:
             # ndim == 3 case: global tree
@@ -110,28 +106,19 @@ class TreeBuilder():
         r_diag, c_diag = np.diag_indices(len(self.feature_names))
         main_effect = siv_scores[r_diag, c_diag]
         self.infos[k]['nodes'] = [dict()]
-        # self.infos[k]['done'] = [set()]
         for i, name in enumerate(self.feature_names):
             self.infos[k]['nodes'][0][i] = Node(
-                name=str(name), parent=None, score=main_effect[i], interaction=0.0, k=0, drop=0.0
+                name=str(name), parent=None, score=main_effect[i], interaction=0.0, k=0, gain=None
             )
 
-        # TODO: Select Random Nodes to start? or Start from largest Interactions? or Main Effects?
-        # try to filter start nodes with larger main effect, since they have larger impact
-        if initialize == 'random':
-            filtered_nodes_to_run = list(np.random.choice(self.feature_names, size=(n_select_scores,), replace=False))
-        elif initialize == 'sort':
-            nodes_to_run = [(key, n.score) for key, n in self.infos[k]['nodes'][0].items()] # [(key, n.score) for key, n in self.infos[k]['nodes'][0].items() if key not in self.infos[k]['done'][0]]
-            sorted_nodes_to_run = sorted(nodes_to_run, key=lambda x: x[1], reverse=True)
-            filtered_nodes_to_run = list(map(lambda x: x[0], sorted_nodes_to_run[:n_select_scores]))
-        elif initialize == 'full':
-            filtered_nodes_to_run = list(self.feature_names)
-        else:
-            raise KeyError('`initialize` should be "random", "sort" or "full"')
+        nodes_to_run = self.get_nodes_to_run(nodes=self.infos[k]['nodes'][0], n_select_scores=n_select_scores)
+        self.infos[k]['nodes_to_run'] = [nodes_to_run]
+        self.infos[k]['gain'] = {
+            'origin': self.polyfitter.original_score, 
+            'min': self.polyfitter.min_score,
+        }
 
-        self.infos[k]['nodes_to_run'] = [filtered_nodes_to_run]
-        self.infos[k]['performance'] = self.polyfitter.original_score
-        self._build(siv_scores, n_select_scores, n_select_performance, k+1)
+        self._build(siv_scores, n_select_scores, n_select_gain, k+1)
         if not self.verbose:
             self.logger.close()
         if rt_only_best:
@@ -139,7 +126,7 @@ class TreeBuilder():
         else:
             return self._get_all_trees()
 
-    def _build(self, siv_scores, n_select_scores, n_select_performance, k):
+    def _build(self, siv_scores, n_select_scores, n_select_gain, k):
         if not self.verbose:
             self.logger.update(1)
         prev_nodes_to_run = deepcopy(self.infos[k-1]['nodes_to_run'])
@@ -153,10 +140,11 @@ class TreeBuilder():
             if self.infos.get(k) is None:
                 self.infos[k]['nodes'] = []
                 self.infos[k]['nodes_to_run'] = []
-                self.infos[k]['performance'] = []
-                
-            performances = []
-            heapq.heapify(performances)
+                self.infos[k]['gain'] = []
+            
+            # deterministic selection
+            all_gains = []
+            heapq.heapify(all_gains)
             i = 0
             while prev_nodes_to_run:
                 nodes_to_run = prev_nodes_to_run.pop(0)
@@ -166,21 +154,20 @@ class TreeBuilder():
                 filtered_keys = self.filter_scores(scores, n_select_scores)
                 if self.verbose:
                     print(f'Number of filtered keys: {len(filtered_keys)}')
-                else:
-                    self.logger.set_postfix_str(f'N keys to run: {len(filtered_keys)}')
+                # else:
+                #     self.logger.set_postfix_str(f'N keys to run: {len(filtered_keys)}')
                 
                 for cmbs in filtered_keys:
                     i += 1
                     trials = list(nodes.keys()) + [cmbs]
-                    performance = self.polyfitter.fit_selected(trials)
-                    performance_drop = self.infos[0]['performance'] - performance
-                    if len(performances) >= n_select_performance:
-                        if performances[0][1] > performance_drop:
-                            heapq.heappushpop(performances, (-n_select_performance, performance_drop, cmbs, deepcopy(nodes)))
+                    gain = self.polyfitter.get_interaction_gain(trials)
+                    if len(all_gains) >= n_select_gain:
+                        if all_gains[0][1] > gain:
+                            heapq.heappushpop(all_gains, (-n_select_gain, gain, cmbs, deepcopy(nodes)))
                     else:
-                        heapq.heappush(performances, (-i, performance_drop, cmbs, deepcopy(nodes)))
+                        heapq.heappush(all_gains, (-i, gain, cmbs, deepcopy(nodes)))
 
-            for _, p, cmbs, nodes in performances:
+            for _, gain, cmbs, nodes in all_gains:
                 value, interaction = self.get_value_and_interaction(siv_scores, cmbs)
                 feature_name = '+'.join([str(self.feature_names[i]) for i in flatten(cmbs)])     
                 children = [nodes[c] for c in cmbs]
@@ -190,48 +177,72 @@ class TreeBuilder():
                     interaction=interaction, 
                     children=children, 
                     k=k,
-                    drop=0.0
+                    gain=gain
                 )
-                nodes[cmbs].drop = p
 
                 # add impossibles cmbs
                 for c in cmbs:
                     nodes.pop(c)
-                self.infos[k]['performance'].append(p)
+                self.infos[k]['gain'].append(gain)
                 self.infos[k]['nodes'].append(nodes)
-                self.infos[k]['nodes_to_run'].append(list(nodes.keys()))
+                nodes_to_run = self.get_nodes_to_run(nodes=nodes, n_select_scores=n_select_scores)
+                self.infos[k]['nodes_to_run'].append(nodes_to_run)
 
             if self.verbose:
                 print(f'Scores: {[round(x, 4) for x in self.infos[k]["performance"]]}')
-            return self._build(siv_scores, n_select_scores, n_select_performance, k+1)
+            return self._build(siv_scores, n_select_scores, n_select_gain, k+1)
     
+    def get_nodes_to_run(self, nodes, n_select_scores):
+        nodes_to_run = [(key, n.score) for key, n in nodes.items()] 
+            
+        if self.nodes_to_run_method == 'random':
+            nodes_to_run = list(nodes.keys())
+            filtered_nodes_to_run = self._random_selection(keys=nodes_to_run, n_select=n_select_scores)
+        elif self.nodes_to_run_method == 'sort':
+            nodes_to_run = [(key, n.score) for key, n in nodes.items()] 
+            sorted_nodes_to_run = sorted(nodes_to_run, key=lambda x: x[1], reverse=True)
+            filtered_nodes_to_run = list(map(lambda x: x[0], sorted_nodes_to_run[:n_select_scores]))
+        elif self.nodes_to_run_method == 'full':
+            filtered_nodes_to_run = list(nodes.keys())
+        else:
+            raise KeyError('`nodes_to_run_method` should be "random", "sort" or "full"')
+        
+        return filtered_nodes_to_run
+
     def filter_scores(self, scores, n_select_scores):
         if len(scores) == 1:
             return list(scores.keys())
 
         if self.filter_method == 'random':
-            scores_to_run = deepcopy(list(scores.keys()))
-            # dup = set()
-            n = 0
-            filtered = []
-            while (n < n_select_scores) and scores_to_run: #(len(dup) < len(scores)):
-                c = random.choice(scores_to_run)
-                scores_to_run.remove(c)
-                filtered.append(c)
-                # if c in dup:
-                #     continue
-                # else:
-                #     dup.add(c)
-                #     filtered.append(c)
-                n += 1
+            filtered = self._random_selection(keys=list(scores.keys()), n_select=n_select_scores)
         elif self.filter_method == 'sort':
             filtered = sorted(scores.items(), key=lambda x: x[1], reverse=True)
             filtered = list(map(lambda x: x[0], filtered[:n_select_scores]))
+        elif self.filter_method == 'prob':
+            if len(scores) < n_select_scores:
+                filtered = list(scores.keys())
+            else:
+                keys, values = list(zip(*scores.items()))
+                prob = np.array(values) / np.array(values).sum()
+                idxes = np.random.choice(np.arange(len(prob)), size=(n_select_scores,), p=prob, replace=False)
+                filtered = [keys[i] for i in idxes]
         else:
-            raise KeyError('`filter_method` should be "random" or "sort"')
+            raise KeyError('`filter_method` should be "random", "sort" or "prob')
 
         return filtered
 
+    def _random_selection(self, keys: List[int], n_select: int):
+        keys_to_run = deepcopy(keys)
+        n = 0
+        res = []
+        while (n < n_select) and len(keys_to_run) > 0:
+            c = random.choice(keys_to_run)
+            keys_to_run.remove(c)
+            res.append(c)
+            n += 1
+        return res
+
+        
     def get_value_and_interaction(self, siv_scores, cmbs):
         r_l, c_l = np.tril_indices(siv_scores.shape[1], -1)
         cmbs_flattend = list(flatten(cmbs))
