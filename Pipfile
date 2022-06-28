@@ -23,6 +23,7 @@ seaborn = "*"
 streamlit = "*"
 pygraphviz = "*"
 gdown = "*"
+streamlit-shap = "*"
 
 [dev-packages]
 pygad = "*"
