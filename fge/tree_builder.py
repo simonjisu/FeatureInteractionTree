@@ -36,7 +36,6 @@ class TreeBuilder():
         self.verbose = verbose
         if not self.verbose:
             self.logger = tqdm(desc='Building Tree')
-        
 
     def shap_interaction_values(self, group_id: None | int=None):
         start = time.time()
@@ -275,7 +274,7 @@ class TreeBuilder():
 
     def _get_best_tree(self):
         last_records = list(self.infos.values())[-1]
-        best_idx = np.argmax(last_records['performance'])
+        best_idx = np.argmax(last_records['gain'])
         node_record = last_records['nodes'][best_idx]
         root = self._extract_root(node_record)
         return ShapInteractionTree(root)

@@ -1,160 +1,147 @@
 # streamlit app for tree demo
 
 import shap
-import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+# import numpy as np
+# import pandas as pd
+# import seaborn as sns
+# import matplotlib.pyplot as plt
 import streamlit as st
+from streamlit_shap import st_shap
 import pickle
 
 from pathlib import Path
 
-from fge.tree_builder import TreeBuilder
+import xgboost as xgb
+from fge import ShapInteractionTree, Dataset
 
 st.set_page_config(layout="wide")
 
-@st.cache
-def get_values():
-    cache_path = Path('.').absolute() / 'cache'
-    with (cache_path / 'CAmodel.pickle').open('rb') as file:
-        results = pickle.load(file)
 
-    model = results['model']
-    # X_train, y_train = results['train']
-    X_test, _ = results['test']
+# st.title('Feature Interaction Tree with SHAP Interaction Values')
+# st.write('''
+# ## Purpose and Motivation
 
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer(X_test)
-    shap_interaction_values = explainer.shap_interaction_values(X_test)
+# Sometimes it is not straight-forward to understand clearly for the receivers of a SHAP explanation (Need to know what the graph means).
+# When features interact with each other in a prediction model, the prediction cannot be expressed as the sum of the feature effects, 
+# because the effect of one feature depends on the value of the other feature. When there are numerous features, it is hard to see 
+# overall pattern between features. We want to explore the interaction effect between features with SHAP interaction values. 
 
-    feature_names = X_test.columns
-    return feature_names, shap_values, shap_interaction_values
+# ## What is SHAP Interaction Values?
 
-st.title('Feature Interaction Tree with SHAP Interaction Values')
-st.write('''
-## Purpose and Motivation
+# The interaction effect is an additional feature effect when two(or more) features combined together after subtracting 
+# each features' individual effect(usually call it main effect). Usually, the combined main effects are bigger than the 
+# interaction effect. [The Shapley interaction index](https://arxiv.org/abs/1902.05622) is defined as below from game theory.
 
-Sometimes it is not straight-forward to understand clearly for the receivers of a SHAP explanation (Need to know what the graph means).
-When features interact with each other in a prediction model, the prediction cannot be expressed as the sum of the feature effects, 
-because the effect of one feature depends on the value of the other feature. When there are numerous features, it is hard to see 
-overall pattern between features. We want to explore the interaction effect between features with SHAP interaction values. 
+# $$\phi_{i,j}=\sum_{S\subseteq M \setminus\{i,j\}} \\dfrac{ \\vert S\\vert !( \\vert M \\vert - \\vert S \\vert -2)!}{2( \\vert M \\vert -1)!} \delta_{ij}(S)$$
 
-## What is SHAP Interaction Values?
+# where $i\\neq j$ and $\delta_{ij}(S)=\hat{f}_x(S\cup\{i,j\})-\hat{f}_x(S\cup\{i\})-\hat{f}_x(S\cup\{j\})+\hat{f}_x(S)$
 
-The interaction effect is an additional feature effect when two(or more) features combined together after subtracting 
-each features' individual effect(usually call it main effect). Usually, the combined main effects are bigger than the 
-interaction effect. [The Shapley interaction index](https://arxiv.org/abs/1902.05622) is defined as below from game theory.
+# ## Why using Tree?
 
-$$\phi_{i,j}=\sum_{S\subseteq M \setminus\{i,j\}} \\dfrac{ \\vert S\\vert !( \\vert M \\vert - \\vert S \\vert -2)!}{2( \\vert M \\vert -1)!} \delta_{ij}(S)$$
+# * Tree is accepted as one of the most commonly used explaining method. "Tree-based methods are used widely in industry."
+# * With tree architecture, people can easily understand how model behaves.
+# * Hierarchical structures such as trees are useful in expressing levels of both "when inputs are perturbed" and "when models are perturbed"
+# * Furthermore, they are useful in displaying the difference of importances.
 
-where $i\\neq j$ and $\delta_{ij}(S)=\hat{f}_x(S\cup\{i,j\})-\hat{f}_x(S\cup\{i\})-\hat{f}_x(S\cup\{j\})+\hat{f}_x(S)$
+# ## Algorithms
 
-## Why using Tree?
+# The algorithm using recursive function to build a tree with hyperpameters of `Method` and `top N`. 
 
-* Tree is accepted as one of the most commonly used explaining method. "Tree-based methods are used widely in industry."
-* With tree architecture, people can easily understand how model behaves.
-* Hierarchical structures such as trees are useful in expressing levels of both "when inputs are perturbed" and "when models are perturbed"
-* Furthermore, they are useful in displaying the difference of importances.
+# ### The meaning of Method 
 
-## Algorithms
+# Method is related to how do we deal with the interaction values. We try to make the tree algorithm work on both 
+# local and global, since user might want to know the interaction effects globally. These methods are also point of views 
+# to process the shap interaction values. After process them to scores, we use these scores to decide how to 
+# build a feature tree.
 
-The algorithm using recursive function to build a tree with hyperpameters of `Method` and `top N`. 
+# $$scores = g(\\text{SHAP interaction values})$$
 
-### The meaning of Method 
+# * `base`: Average the values at global mode. This means we consider both direction and magnitude of interaction effects and main effects.
+# * `abs`: First calculate the absolute values and then average them at global mode. This means we only consider the magnitude of interaction effects and main effects. 
+# * `abs_interaction`: Calculate the absolute values and then average them at global mode. Also, replace all main effects to zeros. This means we only consider the magnitude of interaction effects. 
+# * `ratio`: Calculate the absolute value, average them at global mode. Then, devide the summation of the combination of main effects, and fill all main effects to zeros. This means we consider the relative size of interaction effects.
 
-Method is related to how do we deal with the interaction values. We try to make the tree algorithm work on both 
-local and global, since user might want to know the interaction effects globally. These methods are also point of views 
-to process the shap interaction values. After process them to scores, we use these scores to decide how to 
-build a feature tree.
+# ### The meaning of Top N
 
-$$scores = g(\\text{SHAP interaction values})$$
+# The algorithm build the tree by selecting Top N Scores. At each iteration of calling, it search $C_M^2$ combinations of scores 
+# to build a tree. For example, if top N equals to 1, it means we consider the highest interaction impact to combine the features. 
+# We did not randomly choose nodes to build a tree since that will not fit to explaination purpose. 
 
-* `base`: Average the values at global mode. This means we consider both direction and magnitude of interaction effects and main effects.
-* `abs`: First calculate the absolute values and then average them at global mode. This means we only consider the magnitude of interaction effects and main effects. 
-* `abs_interaction`: Calculate the absolute values and then average them at global mode. Also, replace all main effects to zeros. This means we only consider the magnitude of interaction effects. 
-* `ratio`: Calculate the absolute value, average them at global mode. Then, devide the summation of the combination of main effects, and fill all main effects to zeros. This means we consider the relative size of interaction effects.
+# Also, the calculatation cost in the shap interaction value for each example will cost $O(TMLD^2)$ in TreeSHAP. The tree building process 
+# will cost only on sorting $O(\\frac{M^2-M}{2} \log \\frac{M^2-M}{2}) \\approx O(M^2 \\log M) $ for each depth of tree.
+# * $T$: the number of trees
+# * $L$: the maximum number of leaves in any tree
+# * $D$: the depth of tree, $\log L$
+# * $M$: the muber of features
 
-### The meaning of Top N
+# ''')
 
-The algorithm build the tree by selecting Top N Scores. At each iteration of calling, it search $C_M^2$ combinations of scores 
-to build a tree. For example, if top N equals to 1, it means we consider the highest interaction impact to combine the features. 
-We did not randomly choose nodes to build a tree since that will not fit to explaination purpose. 
+# st.write('''
+# ## Example
 
-Also, the calculatation cost in the shap interaction value for each example will cost $O(TMLD^2)$ in TreeSHAP. The tree building process 
-will cost only on sorting $O(\\frac{M^2-M}{2} \log \\frac{M^2-M}{2}) \\approx O(M^2 \\log M) $ for each depth of tree.
-* $T$: the number of trees
-* $L$: the maximum number of leaves in any tree
-* $D$: the depth of tree, $\log L$
-* $M$: the muber of features
+# * `Dataset`: [California Housing Price Prediction](https://www.dcc.fc.up.pt/~ltorgo/Regression/cal_housing.html)
+# * `Model`: XGBoost with learning rate = 0.3, max depth = 8, number of rounds = 200
+# * `Performance`: 
+#     * number of train data: 18576
+#     * number of test data: 2064
+#     * R2 square on Test Set: 0.8453
+# ''')
 
-''')
+@st.cache(hash_funcs={ShapInteractionTree: hash, xgb.Booster: hash, Dataset:hash}, suppress_st_warning=True)
+def load_cache(cache_path):
+    datasets = ['titanic', 'adult', 'boston', 'california']
+    cache = {}
+    for ds in datasets:
+        with (cache_path / f'{ds}.pickle').open('rb') as file:
+            res = pickle.load(file)
+        cache[ds] = res
+    return cache
 
-st.write('''
-## Example
+cache_path = Path('.').resolve() / 'cache' 
+cache = load_cache(cache_path)
+datasets = ['titanic', 'adult', 'boston', 'california']
+score_method_list = ['abs', 'abs_interaction', 'ratio']
+n_select_scores_list = [3, 5]
+n_select_gain_list = [3, 5]
+nodes_to_run_method_list = ['random', 'sort', 'full']
+filter_method_list = ['random', 'sort', 'prob']
 
-* `Dataset`: [California Housing Price Prediction](https://www.dcc.fc.up.pt/~ltorgo/Regression/cal_housing.html)
-* `Model`: XGBoost with learning rate = 0.3, max depth = 8, number of rounds = 200
-* `Performance`: 
-    * number of train data: 18576
-    * number of test data: 2064
-    * R2 square on Test Set: 0.8453
-''')
+with st.sidebar:
+    ds_name = st.selectbox(label='Dataset Name', options=datasets, index=0)
+    score_method = st.selectbox(label='Score Method', options=score_method_list, index=0)
+    n_select_scores = st.selectbox(label='Maximum Numer of selecting candidates', options=n_select_scores_list, index=0)
+    n_select_gain = st.selectbox(label='Maximum Numer of keeping best gain', options=n_select_gain_list, index=0)
+    nodes_to_run_method = st.selectbox(label='Way to select nodes', options=nodes_to_run_method_list, index=0)
+    filter_method = st.selectbox(label='Way to filter nodes', options=filter_method_list, index=0)
 
-feature_names, shap_values, shap_interaction_values = get_values()
-tree_builder = TreeBuilder()
-magnitude = False 
+    st.write("""
+    Notations:
 
-with st.expander('Some Plots about SHAP Interaction Values'):
-    df_shap = pd.DataFrame(
-        shap_values.values.mean(0)[:, np.newaxis].round(4).T, 
-        columns=feature_names, 
-        index=['Average SHAP values']
-    )
-    st.write(df_shap.style.format("{:.4}"))
-    st.write(f'Sum of all averaged global shap values: {shap_values.values.mean(0).sum():.4f}')
-
-    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
-    sns.heatmap(
-        data=pd.DataFrame(shap_interaction_values.mean(0), index=feature_names, columns=feature_names),
-        cmap='coolwarm', annot=True, fmt='.4f', ax=ax
-    )
-    ax.set_title('Average on SHAP Interaction Values')
-    st.pyplot(fig)
-
-st.write('## Step by step building a feature tree')
-
-col1, col2 = st.columns(2)
-with col1:
-    s = st.selectbox(
-        label='Method of building trees', 
-        options=list(tree_builder.score_methods.keys()),
-        index=1
-    )
+    - `K` = Maximum Numer of selecting candidates
+    - `scores` = Dictionary of 
+        - Key: Combination of features
+        - Value: SIV Score of Combination of features
     
-with col2:
-    top_n = st.selectbox(
-        label='Top N', 
-        options=list(range(1, 4)),
-        index=1
-    )
+    Arguments: 
 
-nodes = tree_builder.build(
-    s, 
-    shap_interactions=shap_interaction_values, 
-    feature_names=feature_names, 
-    top_n=top_n, 
-    magnitude=magnitude
-)
+    - `random`: random select by `K` nodes
+    - `sort`: sorting `scores` by its values, then select top `K` nodes
+    - `full`: select all avaliable nodes for candidates
+    - `prob`: select nodes from the probability of candidates which can be calculated from `scores` (only used in filter)
 
-fig, ax = plt.subplots(1, 1, figsize=(12, 4))
-sns.heatmap(
-    data=pd.DataFrame(tree_builder.siv_scores, index=feature_names, columns=feature_names),
-    cmap='coolwarm', annot=True, fmt='.4f', ax=ax
-)
-ax.set_title('Score Matrix')
-st.pyplot(fig)
+    """)
 
-step = st.slider(label='Step:', min_value=0, max_value=len(tree_builder._iterations)-1, value=0)
-img = tree_builder.show_step_by_step(step)
+args = map(lambda x: str(x), [score_method, n_select_scores, n_select_gain, nodes_to_run_method, filter_method])
+exp_name = '_'.join(args)
+tree = cache[ds_name]['trees'][exp_name]
+dataset = cache[ds_name]['dataset']
+siv = cache[ds_name]['siv']
+explainer = cache[ds_name]['explainer']
+
+st.write("## Tree")
+img = tree.show_tree(dataset.feature_names)
 st.image(img)
+
+st.write("## SHAP Plots")
+st_shap(shap.summary_plot(siv.sum(2), dataset.data['X_train']))
+st_shap(shap.force_plot(explainer.expected_value, siv.sum(2), dataset.data['X_train'].iloc[:1000]))

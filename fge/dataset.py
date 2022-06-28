@@ -11,6 +11,7 @@ class Dataset():
         self.loaders = {
             'adult': (adult, 'binary'), 
             'boston': (boston, 'reg'), 
+            'titanic': (titanic, 'binary'),
             'nhanesi': (nhanesi, 'survival'), # TODO: need to dealwith NaN values to fit poly
             'crime': (communitiesandcrime, 'reg'),  # TODO: need preprocessing y -> proportion of population
             'california': (fetch_california_housing, 'reg'),
@@ -19,8 +20,8 @@ class Dataset():
         self.loader, self.task_type = self.loaders[dataset_name]
         self.seed = seed
         self.data_path = Path(data_folder).resolve()
-        if dataset_name == 'california':
-            ds = self.loader(data_home=self.data_path / 'california', as_frame=True)
+        if dataset_name in ['california', 'titanic']:
+            ds = self.loader(data_home=self.data_path / dataset_name, as_frame=True)
             X, y = ds['data'], ds['target'].to_numpy().reshape(-1)
         else:
             X, y = self.loader()
@@ -83,3 +84,32 @@ class Dataset():
             'y_train': train_data[i]['y'], 
             'y_test': test_data[i]['y']
         } 
+
+
+def titanic(data_home, as_frame=True):
+    # some of preprocess code borrowed from https://www.kaggle.com/code/startupsci/titanic-data-science-solutions
+    def preprocess(dataset, display=False):
+        dataset['Title'] = dataset['Name'].str.extract(' ([A-Za-z]+)\.', expand=False)
+        dataset['Title'] = dataset['Title'].replace(
+            ['Lady', 'Countess','Capt', 'Col', 'Don', 'Dr', 'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Rare')
+
+        dataset['Title'] = dataset['Title'].replace('Mlle', 'Miss')
+        dataset['Title'] = dataset['Title'].replace('Ms', 'Miss')
+        dataset['Title'] = dataset['Title'].replace('Mme', 'Mrs')
+
+        dataset.drop(columns=['Name', 'PassengerId', 'Ticket', 'Cabin'], inplace=True)
+        nonnull_idx = dataset.isnull().sum(1) == 0 
+        dataset = dataset.loc[nonnull_idx].reset_index(drop=True)
+        cate_cols = ['Pclass', 'Sex', 'Embarked', 'Title']
+        for c in cate_cols:
+            dataset[c] = pd.Categorical(dataset[c])
+            if not display:
+                dataset[c] = dataset[c].cat.codes
+        X, y = dataset.iloc[:, 1:], dataset.iloc[:, 0]
+        return X, y
+        
+    df_train = pd.read_csv(Path(data_home).resolve() / 'train.csv')
+    df_test = pd.read_csv(Path(data_home).resolve() / 'test.csv')
+    dataset = pd.concat([df_train, df_test], axis=0).reset_index(drop=True)
+    X, y = preprocess(dataset, display=False)
+    return {'data': X, 'target': y}

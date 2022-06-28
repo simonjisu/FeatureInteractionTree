@@ -38,3 +38,5 @@ def c_statistic_harrell(y_true, y_pred):
                 if y_pred[j] > y_pred[i]:
                     matches += 1
     return matches/total
+
+
