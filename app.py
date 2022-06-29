@@ -1,20 +1,17 @@
 # streamlit app for tree demo
 
+from collections import defaultdict 
 import shap
-# import numpy as np
-# import pandas as pd
-# import seaborn as sns
-# import matplotlib.pyplot as plt
+import os
 import streamlit as st
 from streamlit_shap import st_shap
 import pickle
 
 from pathlib import Path
-
+from ds_desc import DESC
 import xgboost as xgb
 from fge import ShapInteractionTree, Dataset
 
-shap.initjs()
 
 st.set_page_config(layout="wide")
 
@@ -92,19 +89,26 @@ st.set_page_config(layout="wide")
 @st.cache(hash_funcs={shap.Explainer: hash, ShapInteractionTree: hash, xgb.Booster: hash, Dataset:hash}, suppress_st_warning=True)
 def load_cache(cache_path):
     datasets = ['titanic', 'adult', 'boston', 'california']
-    cache = {}
+    cache = defaultdict()
+    system = '_win' if os.name == 'nt' else ''
     for ds in datasets:
-        with (cache_path / f'{ds}.pickle').open('rb') as file:
+        with (cache_path / f'{ds}{system}.pickle').open('rb') as file:
             res = pickle.load(file)
         cache[ds] = res
+        dataset = cache[ds]['dataset']
+        explainer = cache[ds]['explainer']
+        data = dataset.data['X_train']
+        sv = explainer.shap_values(data)
+        cache[ds]['shap_values'] = sv
     return cache
+
 
 cache_path = Path('.').resolve() / 'cache' 
 cache = load_cache(cache_path)
 datasets = ['titanic', 'adult', 'boston', 'california']
 score_method_list = ['abs', 'abs_interaction', 'ratio']
-n_select_scores_list = [3, 5]
-n_select_gain_list = [3, 5]
+n_select_scores_list = [5, 10]
+n_select_gap_list = [5, 10]
 nodes_to_run_method_list = ['random', 'sort', 'full']
 filter_method_list = ['random', 'sort', 'prob']
 
@@ -112,7 +116,7 @@ with st.sidebar:
     ds_name = st.selectbox(label='Dataset Name', options=datasets, index=0)
     score_method = st.selectbox(label='Score Method', options=score_method_list, index=0)
     n_select_scores = st.selectbox(label='Maximum Numer of selecting candidates', options=n_select_scores_list, index=0)
-    n_select_gain = st.selectbox(label='Maximum Numer of keeping best gain', options=n_select_gain_list, index=0)
+    n_select_gap = st.selectbox(label='Maximum Numer of keeping best gap', options=n_select_gap_list, index=0)
     nodes_to_run_method = st.selectbox(label='Way to select nodes', options=nodes_to_run_method_list, index=0)
     filter_method = st.selectbox(label='Way to filter nodes', options=filter_method_list, index=0)
 
@@ -133,17 +137,29 @@ with st.sidebar:
 
     """)
 
-args = map(lambda x: str(x), [score_method, n_select_scores, n_select_gain, nodes_to_run_method, filter_method])
+args = map(lambda x: str(x), [score_method, n_select_scores, n_select_gap, nodes_to_run_method, filter_method])
 exp_name = '_'.join(args)
-tree = cache[ds_name]['trees'][exp_name]
+trees = cache[ds_name]['trees'][exp_name]
 dataset = cache[ds_name]['dataset']
 siv = cache[ds_name]['siv']
+shap_values = cache[ds_name]['shap_values']
 explainer = cache[ds_name]['explainer']
 
 st.write("## Tree")
-img = tree.show_tree(dataset.feature_names)
+tree_imgs = {}
+for i, tree in enumerate(trees):
+    img = tree.show_tree(dataset.feature_names)
+    tree_imgs[i] = img
+
+img_idx = st.selectbox(label='Tree idx', options=list(range(len(tree_imgs))), index=0)
+img = tree_imgs[img_idx]
 st.image(img)
 
 st.write("## SHAP Plots")
-st_shap(shap.summary_plot(siv.sum(2), dataset.data['X_train']))
-st_shap(shap.force_plot(explainer.expected_value, siv.sum(2), dataset.data['X_train'].iloc[:1000]))
+n = 1000
+features = dataset.data['X_train']
+shap.initjs()
+st_shap(shap.summary_plot(shap_values, features=features), height=400)
+st_shap(shap.force_plot(explainer.expected_value, shap_values[:1000], features.iloc[:1000]))
+
+st.write(DESC[ds_name])
