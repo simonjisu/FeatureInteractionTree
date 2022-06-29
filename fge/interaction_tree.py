@@ -73,8 +73,8 @@ class ShapInteractionTree():
         if node.interaction != 0.0:
             children_interaction = np.sum([child.interaction for child in node.children])
             s += f'<TR><TD>interaction={node.interaction - children_interaction:.4f}</TD></TR>'
-        if node.gain is not None:
-            s += f'<TR><TD>gain={node.gain:.4f}</TD></TR>'
+        if node.gap is not None:
+            s += f'<TR><TD>gap={node.gap:.4f}</TD></TR>'
         return s + '</TABLE> >'
 
     def _draw_graph(self, feature_names=None, i=None):

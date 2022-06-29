@@ -29,12 +29,12 @@ class PolyFitter():
         self.min_score = self.fit_all(full=False)
         if self.original_score <= self.min_score:
             print("[Warning] simple linear model performance is better than the original model")
-            print("This might cause the `gain` unstable")
+            print("This might cause the `gap` unstable")
         
     def get_new_X(self, X_original, nodes):
         X = X_original.to_numpy().copy()
         for feature in nodes:
-            if isinstance(feature, int):
+            if isinstance(feature, np.integer):
                 continue
             X = np.concatenate((X, X[:, tuple(flatten(feature))].prod(1)[:, None]), axis=1)
         if isinstance(self.task_model, LinearRegression):
@@ -49,6 +49,8 @@ class PolyFitter():
         return new_X_train, new_X_test
 
     def fit(self, X_train, X_test, y_train, y_test):
+        # scaler = StandardScaler()
+        # scaler = scaler.fit(X_train)
         poly_model = make_pipeline(StandardScaler(), self.task_model(**self.args))
         poly_model.fit(X_train, y_train)
         y_pred = poly_model.predict(X_test)
@@ -72,16 +74,16 @@ class PolyFitter():
         )
         return performance_selected
 
-    def get_gain(self, performance):
+    def get_gap(self, performance):
         """
-        gain    
+        gap    
         """
         # gain = self.original_score - performance
         # diff = self.original_score - self.min_score  # > 0
         # s = gain / diff
         return self.original_score - performance
 
-    def get_interaction_gain(self, nodes):
+    def get_interaction_gap(self, nodes):
         performance_selected = self.fit_selected(nodes)
-        gain = self.get_gain(performance_selected)
-        return gain
+        gap = self.get_gap(performance_selected)
+        return gap

@@ -2,9 +2,10 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from shap.datasets import adult, boston, nhanesi, communitiesandcrime
-from sklearn.datasets import fetch_california_housing
+from sklearn.datasets import fetch_california_housing, fetch_openml
 from sklearn.model_selection import train_test_split
 from collections import defaultdict
+from sklearn.datasets import fetch_openml
 
 class Dataset():
     def __init__(self, dataset_name, data_folder, seed):
@@ -14,14 +15,15 @@ class Dataset():
             'titanic': (titanic, 'binary'),
             'nhanesi': (nhanesi, 'survival'), # TODO: need to dealwith NaN values to fit poly
             'crime': (communitiesandcrime, 'reg'),  # TODO: need preprocessing y -> proportion of population
-            'california': (fetch_california_housing, 'reg'),
+            'california': (california, 'reg'),
+            'ames': (ames_house_prices, 'reg'),
             'lending_club': ()
         }
         self.loader, self.task_type = self.loaders[dataset_name]
         self.seed = seed
         self.data_path = Path(data_folder).resolve()
-        if dataset_name in ['california', 'titanic']:
-            ds = self.loader(data_home=self.data_path / dataset_name, as_frame=True)
+        if dataset_name in ['california', 'titanic', 'ames']:
+            ds = self.loader(data_home=self.data_path / dataset_name, as_frame=True, display=False)
             X, y = ds['data'], ds['target'].to_numpy().reshape(-1)
         else:
             X, y = self.loader()
@@ -83,33 +85,109 @@ class Dataset():
             'X_test': test_data[i]['X'], 
             'y_train': train_data[i]['y'], 
             'y_test': test_data[i]['y']
-        } 
+        }
 
+def california(data_home, as_frame=False, display=False):
+    dataset = fetch_california_housing(data_home=data_home, as_frame=as_frame)
+    X, y = california_preprocess(dataset, display=display)
+    if not as_frame:
+        X, y = X.to_numpy(), y.to_numpy().reshape(-1)
+    return {'data': X, 'target': y}
 
-def titanic(data_home, as_frame=True):
-    # some of preprocess code borrowed from https://www.kaggle.com/code/startupsci/titanic-data-science-solutions
-    def preprocess(dataset, display=False):
-        dataset['Title'] = dataset['Name'].str.extract(' ([A-Za-z]+)\.', expand=False)
-        dataset['Title'] = dataset['Title'].replace(
-            ['Lady', 'Countess','Capt', 'Col', 'Don', 'Dr', 'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Rare')
+def california_preprocess(dataset, display=False):
+    X = dataset['data'].copy()
+    y = dataset['target']
+    X['Latitude'] = pd.qcut(X['Latitude'], 5)
+    X['Longitude'] = pd.qcut(X['Longitude'], 5)
+    if not display:
+        X['Latitude'] = X['Latitude'].cat.codes
+        X['Longitude'] = X['Longitude'].cat.codes
+    return X, y
 
-        dataset['Title'] = dataset['Title'].replace('Mlle', 'Miss')
-        dataset['Title'] = dataset['Title'].replace('Ms', 'Miss')
-        dataset['Title'] = dataset['Title'].replace('Mme', 'Mrs')
+def ames_house_prices(data_home, as_frame=False, display=False):
+    dataset = fetch_openml(name='house_prices', data_home=data_home, as_frame=as_frame)
+    X, y = ames_preprocess(dataset, display=display)
+    if not as_frame:
+        X, y = X.to_numpy(), y.to_numpy().reshape(-1)
+    return {'data': X, 'target': y}
 
-        dataset.drop(columns=['Name', 'PassengerId', 'Ticket', 'Cabin'], inplace=True)
-        nonnull_idx = dataset.isnull().sum(1) == 0 
-        dataset = dataset.loc[nonnull_idx].reset_index(drop=True)
-        cate_cols = ['Pclass', 'Sex', 'Embarked', 'Title']
-        for c in cate_cols:
-            dataset[c] = pd.Categorical(dataset[c])
-            if not display:
-                dataset[c] = dataset[c].cat.codes
-        X, y = dataset.iloc[:, 1:], dataset.iloc[:, 0]
-        return X, y
-        
+def ames_preprocess(dataset, display=False):
+    X = dataset['data'].copy()
+    y = dataset['target'] / 1000
+    basement_cols = ['BsmtFinType2', 'BsmtExposure', 'BsmtQual', 'BsmtFinType1', 'BsmtCond']  # missing basement should be same number
+    cond1 = X.loc[:, ['BsmtFinType2', 'BsmtExposure']].isnull().sum(1) > 0
+    cond2 = X.loc[:, ['BsmtQual', 'BsmtFinType1', 'BsmtCond']].isnull().sum(1) == 0
+    error_idx = X.loc[cond1 & cond2, basement_cols].index
+    X.drop(index=error_idx, inplace=True)
+    y.drop(index=error_idx, inplace=True)
+    error_idx2 = X['Electrical'].loc[X['Electrical'].isnull()].index
+    X.drop(index=error_idx2, inplace=True)
+    y.drop(index=error_idx2, inplace=True)
+    # Missing = NA
+    na_cols = [
+        'PoolQC', 'MiscFeature', 'Alley', 'Fence', 'FireplaceQu', 'GarageType', 'GarageQual', 'GarageCond', 'GarageFinish', 
+        'BsmtFinType2', 'BsmtExposure', 'BsmtQual', 'BsmtFinType1', 'BsmtCond'
+    ]
+    X.loc[:, na_cols] = X.loc[:, na_cols].fillna('NA').values
+    X.loc[:, ['MasVnrArea', 'MasVnrType']] = X.loc[:, ['MasVnrArea', 'MasVnrType']].fillna(0).values  # if none should fill 0
+    X.loc[X['GarageYrBlt'].isnull(), 'GarageYrBlt'] = X.loc[X['GarageYrBlt'].isnull(), 'YearBuilt'].values # fill it as YearBuilt
+    X.loc[:, 'LotFrontage'] = X['LotFrontage'].fillna(X['LotFrontage'].mean())
+    X.drop(columns=['Id'], inplace=True)
+    X.reset_index(drop=True, inplace=True)
+    # Data type correction
+    c_int = [
+        'MSSubClass', 'OverallQual', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'BsmtFullBath', 'BsmtHalfBath', 'FullBath', 'HalfBath',
+        'BedroomAbvGr', 'KitchenAbvGr', 'TotRmsAbvGrd', 'Fireplaces', 'GarageYrBlt', 'GarageCars', 'MoSold', 'YrSold'
+    ]
+    c_float = [
+        'LotFrontage', 'LotArea', 'MasVnrArea', 'BsmtFinSF1', 'BsmtFinSF2', 'BsmtUnfSF', 'TotalBsmtSF', 
+        '1stFlrSF', '2ndFlrSF', 'LowQualFinSF', 'GrLivArea', 'GarageArea', 'WoodDeckSF', 'OpenPorchSF', 'EnclosedPorch', '3SsnPorch',
+        'ScreenPorch', 'PoolArea', 'MiscVal'
+    ]
+    c_cates = [
+        'MSZoning', 'Street', 'Alley', 'LotShape', 'LandContour', 'Utilities', 'LotConfig', 'LandSlope',
+        'Neighborhood', 'Condition1', 'Condition2', 'BldgType', 'HouseStyle', 'RoofStyle', 'RoofMatl', 
+        'Exterior1st', 'Exterior2nd', 'MasVnrType', 'ExterQual', 'ExterCond', 'Foundation', 'BsmtQual', 
+        'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'BsmtFinType2', 'Heating', 'HeatingQC', 'CentralAir', 
+        'Electrical', 'KitchenQual', 'Functional',  'FireplaceQu', 'GarageType', 'GarageFinish', 'GarageQual', 
+        'GarageCond', 'PavedDrive', 'PoolQC', 'Fence', 'MiscFeature', 'SaleType', 'SaleCondition'
+    ]
+    X.loc[:, c_int] = X.loc[:, c_int].astype(np.int64)
+    X.loc[:, c_float] = X.loc[:, c_float].astype(np.float64)
+    for c in c_cates:
+        cates = ['NA'] + list(X[c].unique()[X[c].unique() != 'NA']) if 'NA' in X[c].unique() else list(X[c].unique())
+        X.loc[:, c] = pd.Categorical(X[c], categories=cates)
+        if not display:
+            X.loc[:, c] = X[c].cat.codes
+    return X, y
+
+def titanic(data_home, as_frame=False, display=False):
     df_train = pd.read_csv(Path(data_home).resolve() / 'train.csv')
     df_test = pd.read_csv(Path(data_home).resolve() / 'test.csv')
     dataset = pd.concat([df_train, df_test], axis=0).reset_index(drop=True)
-    X, y = preprocess(dataset, display=False)
+    X, y = titanic_preprocess(dataset, display=display)
+    if not as_frame:
+        X, y = X.to_numpy(), y.to_numpy().reshape(-1)
     return {'data': X, 'target': y}
+
+def titanic_preprocess(dataset, display=False):
+    # some of preprocess code borrowed from https://www.kaggle.com/code/startupsci/titanic-data-science-solutions
+
+    dataset['Title'] = dataset['Name'].str.extract(' ([A-Za-z]+)\.', expand=False)
+    dataset['Title'] = dataset['Title'].replace(
+        ['Lady', 'Countess','Capt', 'Col', 'Don', 'Dr', 'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Rare')
+
+    dataset['Title'] = dataset['Title'].replace('Mlle', 'Miss')
+    dataset['Title'] = dataset['Title'].replace('Ms', 'Miss')
+    dataset['Title'] = dataset['Title'].replace('Mme', 'Mrs')
+
+    dataset.drop(columns=['Name', 'PassengerId', 'Ticket', 'Cabin'], inplace=True)
+    nonnull_idx = dataset.isnull().sum(1) == 0 
+    dataset = dataset.loc[nonnull_idx].reset_index(drop=True)
+    cate_cols = ['Pclass', 'Sex', 'Embarked', 'Title']
+    for c in cate_cols:
+        dataset[c] = pd.Categorical(dataset[c])
+        if not display:
+            dataset[c] = dataset[c].cat.codes
+    X, y = dataset.iloc[:, 1:], dataset.iloc[:, 0]
+    return X, y
