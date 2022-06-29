@@ -14,6 +14,8 @@ from pathlib import Path
 import xgboost as xgb
 from fge import ShapInteractionTree, Dataset
 
+shap.initjs()
+
 st.set_page_config(layout="wide")
 
 
