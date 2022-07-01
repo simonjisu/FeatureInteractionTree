@@ -144,6 +144,14 @@ dataset = cache[ds_name]['dataset']
 siv = cache[ds_name]['siv']
 shap_values = cache[ds_name]['shap_values']
 explainer = cache[ds_name]['explainer']
+features = dataset.data['X_train']
+
+shap_values = shap.Explanation(
+    shap_values, 
+    base_values=explainer.expected_value,
+    data=features,
+    feature_names=dataset.feature_names
+)
 
 st.write("## Tree")
 tree_imgs = {}
@@ -157,10 +165,9 @@ st.image(img)
 
 st.write("## SHAP Plots")
 n = 1000
-features = dataset.data['X_train']
 shap.initjs()
-st_shap(shap.summary_plot(shap_values, features=features), height=400)
+st_shap(shap.summary_plot(shap_values), height=400)
 # st_shap(shap.force_plot(explainer.expected_value, shap_values[:1000], features.iloc[:1000]))
-st_shap(shap.plots.bar(shap_values, max_display=20))
+st_shap(shap.plots.bar(shap_values), height=400)
 
 st.write(DESC[ds_name])
