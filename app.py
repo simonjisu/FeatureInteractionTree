@@ -168,6 +168,6 @@ n = 1000
 shap.initjs()
 st_shap(shap.summary_plot(shap_values), height=400)
 # st_shap(shap.force_plot(explainer.expected_value, shap_values[:1000], features.iloc[:1000]))
-st_shap(shap.plots.bar(shap_values), height=400)
+st_shap(shap.plots.bar(shap_values, max_display=20), height=400)
 
 st.write(DESC[ds_name])
