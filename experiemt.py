@@ -6,6 +6,19 @@ from fge import Dataset, ModelBuilder, TreeBuilder
 from tqdm import tqdm
 import argparse
 import os 
+import pickle
+import os
+from collections import defaultdict
+import pandas as pd
+
+def load_cache(cache_path, dataset_names):
+    cache = defaultdict()
+    system = '_win' if os.name == 'nt' else ''
+    for ds_name in dataset_names:
+        with (cache_path / f'{ds_name}{system}.pickle').open('rb') as file:
+            res = pickle.load(file)
+        cache[ds_name] = res
+    return cache
 
 def experiment(seed, ds, data_folder, exps, infos=False):
     model_kwargs = {
@@ -23,9 +36,11 @@ def experiment(seed, ds, data_folder, exps, infos=False):
     tree_builder = TreeBuilder(model, dataset, original_score=performance)
     siv = tree_builder.shap_interaction_values(group_id=None)
     trees_dicts = {}
+    tree_gaps = {}
     if infos:
         build_infos = {}
     logger = tqdm(desc=f'Processing {ds}', total=len(exps))
+    
     for e in exps:
         exp_name = '_'.join(map(lambda x: str(x), e))
         score_method, n_select_scores, n_select_gap, nodes_to_run_method, filter_method = e
@@ -40,7 +55,10 @@ def experiment(seed, ds, data_folder, exps, infos=False):
             rt_only_best=True,
             verbose=False
         )
-        trees_dicts[exp_name] = trees
+        trees_dicts[exp_name] = {'t': trees, 'gaps': trees[-1].get_performance_gap()}
+        # only add last tree gaps
+        tree_gaps
+
         if infos:
             build_infos[exp_name] = tree_builder.infos
         logger.update(1)
@@ -93,9 +111,40 @@ def main(infos=False, force_rerun=False):
             with (cache_folder / filename).open('wb') as file:
                 pickle.dump(res, file)
 
+def record():
+    dataset_names = ['titanic', 'adult', 'boston', 'california']
+    cache = load_cache(Path('../cache').resolve(), dataset_names=dataset_names)
+
+    score_method_list = ['abs', 'abs_interaction', 'ratio']
+    n_select_scores_list = [5, 10]
+    n_select_gap_list = [5, 10]
+    nodes_to_run_method_list = ['random', 'sort', 'full']
+    filter_method_list = ['random', 'sort', 'prob']
+    exps = list(itertools.product(
+        score_method_list, 
+        n_select_scores_list,
+        n_select_gap_list, 
+        nodes_to_run_method_list, 
+        filter_method_list
+    ))
+    tree_gaps = []
+    prog_bar = tqdm(total=len(dataset_names)*len(exps))
+    for ds_name in dataset_names:
+        for e in exps:
+            exp_name = '_'.join(map(lambda x: str(x), e))
+            gaps = cache[ds_name]['trees'][exp_name]['gaps']
+            for i, g in gaps:
+                tree_gaps.append( (ds_name, exp_name, i, g) )
+            # prog_bar
+            prog_bar.update(1)
+    prog_bar.close()
+    df = pd.DataFrame(tree_gaps, columns=['dataset', 'exp_name', 'step', 'gaps'])
+    df.to_csv(Path('./cache').resolve() / 'all_results.csv', encodint='utf-8', index=False)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--infos', action='store_true')
     parser.add_argument('--force_rerun', action='store_true')
     args = parser.parse_args()
     main(infos=args.infos, force_rerun=args.force_rerun)
+    record()

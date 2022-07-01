@@ -161,7 +161,11 @@ class TreeBuilder():
                 
                 # Use
                 for cmbs in filtered_keys:
-                    trials = list(self.feature_names) + list(filter(lambda x: isinstance(x, tuple), nodes.keys())) + [cmbs]
+                    combined_keys = list(filter(lambda x: isinstance(x, tuple), nodes.keys()))
+                    combined_keys_history = set()
+                    list(flatten(combined_keys, res=combined_keys_history))
+                    combined_keys_history = list(combined_keys_history)
+                    trials = list(self.feature_names) + combined_keys_history + [cmbs]
                     gap = self.polyfitter.get_interaction_gap(trials)
                     all_gaps.append((gap, cmbs, deepcopy(nodes), filtered_keys, scores))
                     if len(all_gaps) > n_select_gap:
@@ -172,20 +176,14 @@ class TreeBuilder():
                 value, interaction = self.get_value_and_interaction(siv_scores, cmbs)
                 feature_name = '+'.join([str(self.feature_names[i]) for i in flatten(cmbs)])     
                 children = [nodes[c] for c in cmbs]
-                try:
-                    nodes[cmbs] = Node(
-                        name=feature_name, 
-                        score=value, 
-                        interaction=interaction, 
-                        children=children, 
-                        k=k,
-                        gap=gap
-                    )
-                except TreeError: 
-                    print(k, cmbs,nodes_to_run)
-                    print(scores.keys())
-                    print(filtered_keys)
-                    print(nodes.keys())
+                nodes[cmbs] = Node(
+                    name=feature_name, 
+                    score=value, 
+                    interaction=interaction, 
+                    children=children, 
+                    k=k,
+                    gap=gap
+                )
                 # add impossibles cmbs
                 for c in cmbs:
                     nodes.pop(c)

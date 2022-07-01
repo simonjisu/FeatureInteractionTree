@@ -12,7 +12,7 @@ class ShapInteractionTree():
         self.levels = None
         self.depth = None
         self.levels_reverse = None
-        self.level_group_order()
+        self._level_group_order()
 
         self.colors = {
             'blue': '#2F33BD', 'red': '#C9352C', 'black': '#000000'
@@ -30,7 +30,7 @@ class ShapInteractionTree():
             }
         }
 
-    def level_group_order(self):
+    def _level_group_order(self):
         self.levels = {}
         for i, childrens in enumerate(LevelGroupOrderIter(self.root)):
             self.levels[i] = []
@@ -44,7 +44,12 @@ class ShapInteractionTree():
         for pre, fill, node in RenderTree(self.root):
             tree_str += f'{pre}{node.name}(v={node.score:.4f}, i={node.interaction:.4f})\n'
         return tree_str
-  
+    
+    def get_performance_gap(self):
+        gaps = [(node.k, node.gap) for *_, node in RenderTree(self.root) if node.k != 0]
+        gaps = sorted(gaps, key=lambda x: x[0])
+        return gaps
+
     def show_tree(self, feature_names=None): 
         G = self._draw_graph(feature_names)
         img = self._display_graph(G)

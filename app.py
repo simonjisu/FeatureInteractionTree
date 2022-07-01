@@ -3,10 +3,12 @@
 from collections import defaultdict 
 import shap
 import os
+import numpy as np
+import pandas as pd
 import streamlit as st
 from streamlit_shap import st_shap
 import pickle
-
+import seaborn as sns
 from pathlib import Path
 from ds_desc import DESC
 import xgboost as xgb
@@ -87,33 +89,47 @@ st.set_page_config(layout="wide")
 # ''')
 
 @st.cache(hash_funcs={shap.Explainer: hash, ShapInteractionTree: hash, xgb.Booster: hash, Dataset:hash}, suppress_st_warning=True)
-def load_cache(cache_path):
-    datasets = ['titanic', 'adult', 'boston', 'california']
+def load_cache(cache_path, dataset_names):
     cache = defaultdict()
     system = '_win' if os.name == 'nt' else ''
-    for ds in datasets:
-        with (cache_path / f'{ds}{system}.pickle').open('rb') as file:
+    for ds_name in dataset_names:
+        with (cache_path / f'{ds_name}{system}.pickle').open('rb') as file:
             res = pickle.load(file)
-        cache[ds] = res
-        dataset = cache[ds]['dataset']
-        explainer = cache[ds]['explainer']
+        cache[ds_name] = res
+        dataset = cache[ds_name]['dataset']
+        explainer = cache[ds_name]['explainer']
         data = dataset.data['X_train']
         sv = explainer.shap_values(data)
-        cache[ds]['shap_values'] = sv
+        cache[ds_name]['shap_values'] = sv
     return cache
 
+def get_exp_name(sm, nsn, nsg, ntrm, fm):
+    args = map(lambda x: str(x), [sm, nsn, nsg, ntrm, fm])
+    exp_name = '_'.join(args)
+    return exp_name
 
+
+dataset_names = ['titanic', 'adult', 'boston', 'california']
 cache_path = Path('.').resolve() / 'cache' 
-cache = load_cache(cache_path)
-datasets = ['titanic', 'adult', 'boston', 'california']
+cache = load_cache(cache_path, dataset_names)
+# df_gaps
+df_gaps = pd.read_csv(cache_path / 'all_results.csv', encoding='utf-8')
+df_gaps['methods'] = df_gaps['exp_name'].str.extract('(abs\_interaction|ratio|abs)')
+for method in df_gaps['methods'].unique():
+    cond = df_gaps['methods'] == method
+    df_gaps.loc[cond, 'exp_name'] = df_gaps.loc[cond, 'exp_name'].str.slice(start=len(method))
+df_gaps['exp_name'] = df_gaps['exp_name'].str.slice(start=1)
+
 score_method_list = ['abs', 'abs_interaction', 'ratio']
 n_select_scores_list = [5, 10]
 n_select_gap_list = [5, 10]
 nodes_to_run_method_list = ['random', 'sort', 'full']
 filter_method_list = ['random', 'sort', 'prob']
 
+
+# individual exp
 with st.sidebar:
-    ds_name = st.selectbox(label='Dataset Name', options=datasets, index=0)
+    ds_name = st.selectbox(label='Dataset Name', options=dataset_names, index=0)
     score_method = st.selectbox(label='Score Method', options=score_method_list, index=0)
     n_select_scores = st.selectbox(label='Maximum Numer of selecting candidates', options=n_select_scores_list, index=0)
     n_select_gap = st.selectbox(label='Maximum Numer of keeping best gap', options=n_select_gap_list, index=0)
@@ -137,37 +153,53 @@ with st.sidebar:
 
     """)
 
-args = map(lambda x: str(x), [score_method, n_select_scores, n_select_gap, nodes_to_run_method, filter_method])
-exp_name = '_'.join(args)
-trees = cache[ds_name]['trees'][exp_name]
+exp_name = get_exp_name(score_method, n_select_scores, n_select_gap, nodes_to_run_method, filter_method)
+tree = cache[ds_name]['trees'][exp_name]['t'][-1]
 dataset = cache[ds_name]['dataset']
 siv = cache[ds_name]['siv']
-shap_values = cache[ds_name]['shap_values']
+sv = cache[ds_name]['shap_values']
 explainer = cache[ds_name]['explainer']
 features = dataset.data['X_train']
 
 shap_values = shap.Explanation(
-    shap_values, 
+    sv, 
     base_values=explainer.expected_value,
     data=features,
     feature_names=dataset.feature_names
 )
 
-st.write("## Tree")
-tree_imgs = {}
-for i, tree in enumerate(trees):
-    img = tree.show_tree(dataset.feature_names)
-    tree_imgs[i] = img
 
-img_idx = st.selectbox(label='Tree idx', options=list(range(len(tree_imgs))), index=0)
-img = tree_imgs[img_idx]
-st.image(img)
+st.write("## Tree")
+tree_img = tree.show_tree(feature_names=dataset.feature_names)
+st.image(tree_img)
+
 
 st.write("## SHAP Plots")
 n = 1000
 shap.initjs()
-st_shap(shap.summary_plot(shap_values), height=400)
+st_shap(shap.summary_plot(shap_values), height=400, width=700)
 # st_shap(shap.force_plot(explainer.expected_value, shap_values[:1000], features.iloc[:1000]))
-st_shap(shap.plots.bar(shap_values, max_display=20), height=400)
-
+st_shap(shap.plots.bar(shap_values, max_display=20), height=400, width=700)
 st.write(DESC[ds_name])
+
+st.write('# Experiment Plots')
+rename_cols = {0: 'n_select_scores', 1: 'n_select_gap', 2: 'nodes_to_run_method', 3: 'filter_method'}
+
+df_temp = (df_gaps.loc[(df_gaps['dataset'] == ds_name) & (df_gaps['methods'] == score_method), ['exp_name', 'step', 'gaps']]).copy()
+df_exps = df_temp['exp_name'].str.split('_', expand=True).rename(columns=rename_cols)
+
+op_nss = st.multiselect('Maximum Numer of selecting candidates', options=df_exps['n_select_scores'].unique())
+op_nsg = st.multiselect('Maximum Numer of keeping best gap', options=df_exps['n_select_gap'].unique())
+op_ntrm = st.multiselect('Way to select nodes', options=df_exps['nodes_to_run_method'].unique())
+op_fm = st.multiselect('Way to filter nodes', options=df_exps['filter_method'].unique())
+if op_nss and op_nsg and op_ntrm and op_fm:
+    cond = df_exps['n_select_scores'].isin(op_nss) & df_exps['n_select_gap'].isin(op_nsg) & \
+        df_exps['nodes_to_run_method'].isin(op_ntrm) & df_exps['filter_method'].isin(op_fm)
+    df_draw = df_temp.loc[df_exps.index[cond]]
+    
+    pivot_table = df_draw.pivot(index='step', columns='exp_name')['gaps']
+    st.write(pivot_table.T)
+    st.line_chart(pd.DataFrame(pivot_table.values, index=pivot_table.index, columns=pivot_table.columns.values), use_container_width=True)
+
+
+# st.line_chart(df_gaps.set_index(['idx', 'exp_name']).unstack('exp_name')['gaps'])

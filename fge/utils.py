@@ -1,6 +1,6 @@
 from typing import List, Any, Generator
 
-def flatten(li: List[Any]) -> Generator:
+def flatten(li: List[Any], res: None|set=None) -> Generator:
     """flatten nested list
 
     ```python
@@ -13,13 +13,16 @@ def flatten(li: List[Any]) -> Generator:
     ```
     Args:
         li (List[Any]): any kinds of list
+        res (None | set, optional): add results of tuple or list. Defaults to None.
 
     Yields:
         Generator: flattened list generator
     """
     for ele in li:
         if isinstance(ele, list) or isinstance(ele, tuple):
-            yield from flatten(ele)
+            if res is not None:
+                res.add(ele)
+            yield from flatten(ele, res)
         else:
             yield ele
 
