@@ -147,4 +147,4 @@ if __name__ == '__main__':
     parser.add_argument('--force_rerun', action='store_true')
     args = parser.parse_args()
     main(infos=args.infos, force_rerun=args.force_rerun)
-    record()
+    # record()
