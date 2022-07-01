@@ -108,7 +108,7 @@ def get_exp_name(sm, nsn, nsg, ntrm, fm):
     exp_name = '_'.join(args)
     return exp_name
 
-# @st.cache
+@st.cache
 def get_df_gaps(cache_path):
     # df_gaps
     df_gaps = pd.read_csv(cache_path / 'all_results.csv', encoding='utf-8')
