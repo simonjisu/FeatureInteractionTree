@@ -36,7 +36,6 @@ def experiment(seed, ds, data_folder, exps, infos=False):
     tree_builder = TreeBuilder(model, dataset, original_score=performance)
     siv = tree_builder.shap_interaction_values(group_id=None)
     trees_dicts = {}
-    tree_gaps = {}
     if infos:
         build_infos = {}
     logger = tqdm(desc=f'Processing {ds}', total=len(exps))
@@ -55,9 +54,13 @@ def experiment(seed, ds, data_folder, exps, infos=False):
             rt_only_best=True,
             verbose=False
         )
-        trees_dicts[exp_name] = {'t': trees, 'gaps': trees[-1].get_performance_gap()}
+        
+        trees_dicts[exp_name] = {
+            't': trees, 
+            'gaps': trees[-1].get_performance_gap(), 
+            'time': tree_builder._record_time
+        }
         # only add last tree gaps
-        tree_gaps
 
         if infos:
             build_infos[exp_name] = tree_builder.infos
@@ -113,7 +116,7 @@ def main(infos=False, force_rerun=False):
 
 def record():
     dataset_names = ['titanic', 'adult', 'boston', 'california']
-    cache = load_cache(Path('../cache').resolve(), dataset_names=dataset_names)
+    cache = load_cache(Path('./cache').resolve(), dataset_names=dataset_names)
 
     score_method_list = ['abs', 'abs_interaction', 'ratio']
     n_select_scores_list = [5, 10]
@@ -128,23 +131,31 @@ def record():
         filter_method_list
     ))
     tree_gaps = []
+    tree_times = []
     prog_bar = tqdm(total=len(dataset_names)*len(exps))
     for ds_name in dataset_names:
         for e in exps:
             exp_name = '_'.join(map(lambda x: str(x), e))
             gaps = cache[ds_name]['trees'][exp_name]['gaps']
+            time_cost = cache[ds_name]['trees'][exp_name]['time']
+            tree_times.append( (ds_name, exp_name, time_cost) )
             for i, g in gaps:
                 tree_gaps.append( (ds_name, exp_name, i, g) )
+                
             # prog_bar
             prog_bar.update(1)
     prog_bar.close()
     df = pd.DataFrame(tree_gaps, columns=['dataset', 'exp_name', 'step', 'gaps'])
     df.to_csv(Path('./cache').resolve() / 'all_results.csv', encodint='utf-8', index=False)
+    df_time = pd.DataFrame(tree_times, columns=['dataset', 'exp_name', 'time_cost'])
+    df_time.to_csv(Path('./cache').resolve() / 'all_time_cost.csv', encodint='utf-8', index=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--infos', action='store_true')
     parser.add_argument('--force_rerun', action='store_true')
+    parser.add_argument('--record', action='store_true')
     args = parser.parse_args()
     main(infos=args.infos, force_rerun=args.force_rerun)
-    # record()
+    if args.record:
+        record()

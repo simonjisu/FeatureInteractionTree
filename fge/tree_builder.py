@@ -16,6 +16,13 @@ from collections import defaultdict
 from tqdm import tqdm
 from anytree import Node, TreeError
 
+def cal_time(start, end):
+    time_cost = end - start
+    mins = int(time_cost//60)
+    secs = time_cost - mins*60
+    return mins, secs
+
+
 class TreeBuilder():
     def __init__(self, model, dataset, original_score: None|float=None):
         """Interaction Tree Builder"""
@@ -52,9 +59,7 @@ class TreeBuilder():
             print(f'Processing: # of data = {len(data["X_train"])}, # of features = {len(self.dataset.feature_names)}')
             shap_interactions = self.explainer.shap_interaction_values(data['X_train'])
         end = time.time()
-        time_cost = end - start
-        mins = int(time_cost//60)
-        secs = time_cost - mins*60
+        mins, secs = cal_time(start, end)
         print(f'Cost time: {mins:d} mins {secs:.2f} secs')
         return shap_interactions
         
@@ -113,7 +118,13 @@ class TreeBuilder():
         self.infos[k]['nodes'] = [dict()]
         for i, name in enumerate(self.feature_names):
             self.infos[k]['nodes'][0][i] = Node(
-                name=str(name), parent=None, score=main_effect[i], interaction=0.0, k=0, gap=None
+                name=str(name), 
+                parent=None, 
+                score=main_effect[i], 
+                interaction=0.0, 
+                k=0, 
+                gap=None, 
+                summary=None
             )
 
         nodes_to_run = self.get_nodes_to_run(nodes=self.infos[k]['nodes'][0], n_select_scores=n_select_scores)
@@ -122,8 +133,11 @@ class TreeBuilder():
             'origin': self.polyfitter.original_score, 
             # 'min': self.polyfitter.min_score,
         }
-
+        start = time.time()
         self._build(siv_scores, n_select_scores, n_select_gap, k+1)
+        end = time.time()
+        mins, secs = cal_time(start, end)
+        self._record_time = f'{mins} m, {secs:.2f} s'
         if not self.verbose:
             self.logger.close()
         if rt_only_best:
@@ -168,12 +182,12 @@ class TreeBuilder():
                     # trials = list(self.feature_names) + combined_keys_history + [cmbs]
                     trials = combined_keys_history + [cmbs]
                     gap = self.polyfitter.get_interaction_gap(trials)
-                    all_gaps.append((gap, cmbs, deepcopy(nodes), filtered_keys, scores))
+                    all_gaps.append((gap, cmbs, deepcopy(nodes)))
                     if len(all_gaps) > n_select_gap:
                         new_gaps = np.array(list(map(lambda x: x[0], all_gaps)))
                         all_gaps = [all_gaps[i] for i in new_gaps.argsort() if i != n_select_gap]
 
-            for gap, cmbs, nodes, filtered_keys, scores in all_gaps:
+            for gap, cmbs, nodes in all_gaps:
                 value, interaction = self.get_value_and_interaction(siv_scores, cmbs)
                 feature_name = '+'.join([str(self.feature_names[i]) for i in flatten(cmbs)])     
                 children = [nodes[c] for c in cmbs]
@@ -183,7 +197,7 @@ class TreeBuilder():
                     interaction=interaction, 
                     children=children, 
                     k=k,
-                    gap=gap
+                    gap=gap,
                 )
                 # add impossibles cmbs
                 for c in cmbs:

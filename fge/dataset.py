@@ -43,10 +43,34 @@ class Dataset():
         }
 
     def _preprocess_X(self, dataset_name, X, y):
+        def change_types(X, cate_cols):
+            for c in X.columns:
+                if c in cate_cols:
+                    X[c] = X[c].astype(np.int64)  # pd.Categorical(X[c]) for instance since SHAP not support Categorical yet
+                else:
+                    X[c] = X[c].astype(np.float64)
+            return X 
         if dataset_name == 'titanic':
             cate_cols = ['Pclass', 'Sex', 'SibSp', 'Parch', 'Embarked', 'Title']
-            for c in cate_cols:
-                X[c] = X[c].astype(np.int32)  # pd.Categorical(X[c]) for instance since SHAP not support Categorical yet
+            X = change_types(X, cate_cols)
+        elif dataset_name == 'adult':
+            
+            cate_cols = ['Workclass', 'Marital Status', 'Occupation','Relationship', 'Race', 'Sex', 'Country']
+            X = change_types(X, cate_cols)
+            X.rename(columns={
+                'Education-Num': 'EducationNum', 
+                'Marital Status': 'MaritalStatus', 
+                'Capital Gain': 'CapitalGain',  
+                'Capital Loss': 'CapitalLoss',
+                'Hours per week': 'HoursPerWeek'
+            }, inplace=True)
+
+        elif dataset_name == 'california':
+            cate_cols = ['Latitude', 'Longitude']
+            X = change_types(X, cate_cols)
+        elif dataset_name == 'boston':
+            cate_cols = ['CHAS']
+            X = change_types(X, cate_cols)
         elif dataset_name == 'nhanesi':
             X = X.drop(columns=X.columns[X.isnull().sum() > 0])
         return X

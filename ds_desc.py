@@ -57,6 +57,7 @@ california = """
 - AveOccup: Average number of households, a group of people residing within a home unit, for a block
 - MedInc: Median income for households within a block of houses (measured in tens of thousands of US Dollars)
 
+Two columns are preprocessed to categoricals
 - Latitude: [(32.539, 33.87] < (33.87, 34.1] < (34.1, 36.66] < (36.66, 37.81] < (37.81, 41.95]
 - Longtitude: [(-124.351, -121.98] < (-121.98, -119.91] < (-119.91, -118.3] < (-118.3, -117.89] < (-117.89, -114.31]]
 """
