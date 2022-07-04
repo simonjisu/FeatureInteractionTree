@@ -30,8 +30,14 @@ class ModelBuilder():
             'subsample': subsample,
             'seed': seed
         }
-        xgb_train = xgb.DMatrix(dataset.data['X_train'], label=dataset.data['y_train'])
-        xgb_test = xgb.DMatrix(dataset.data['X_test'], label=dataset.data['y_test'])
+        xgb_train = xgb.DMatrix(dataset.data['X_train'], 
+            label=dataset.data['y_train'],
+            #enable_categorical=True
+        )
+        xgb_test = xgb.DMatrix(dataset.data['X_test'], 
+            label=dataset.data['y_test'],
+            #enable_categorical=True
+        )
 
         model = xgb.train(
             params, xgb_train, num_rounds, 

@@ -120,7 +120,7 @@ class TreeBuilder():
         self.infos[k]['nodes_to_run'] = [nodes_to_run]
         self.infos[k]['gap'] = {
             'origin': self.polyfitter.original_score, 
-            'min': self.polyfitter.min_score,
+            # 'min': self.polyfitter.min_score,
         }
 
         self._build(siv_scores, n_select_scores, n_select_gap, k+1)
@@ -165,7 +165,8 @@ class TreeBuilder():
                     combined_keys_history = set()
                     list(flatten(combined_keys, res=combined_keys_history))
                     combined_keys_history = list(combined_keys_history)
-                    trials = list(self.feature_names) + combined_keys_history + [cmbs]
+                    # trials = list(self.feature_names) + combined_keys_history + [cmbs]
+                    trials = combined_keys_history + [cmbs]
                     gap = self.polyfitter.get_interaction_gap(trials)
                     all_gaps.append((gap, cmbs, deepcopy(nodes), filtered_keys, scores))
                     if len(all_gaps) > n_select_gap:

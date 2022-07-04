@@ -43,7 +43,11 @@ class Dataset():
         }
 
     def _preprocess_X(self, dataset_name, X, y):
-        if dataset_name == 'nhanesi':
+        if dataset_name == 'titanic':
+            cate_cols = ['Pclass', 'Sex', 'SibSp', 'Parch', 'Embarked', 'Title']
+            for c in cate_cols:
+                X[c] = X[c].astype(np.int32)  # pd.Categorical(X[c]) for instance since SHAP not support Categorical yet
+        elif dataset_name == 'nhanesi':
             X = X.drop(columns=X.columns[X.isnull().sum() > 0])
         return X
 
