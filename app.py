@@ -14,9 +14,8 @@ from ds_desc import DESC
 import xgboost as xgb
 from fge import ShapInteractionTree, Dataset
 
-
+EXP_DIR = 'onehot_nointercept'
 st.set_page_config(layout="wide")
-
 
 # st.title('Feature Interaction Tree with SHAP Interaction Values')
 # st.write('''
@@ -127,7 +126,7 @@ def get_df_gaps(cache_path):
 
 
 dataset_names = ['titanic', 'adult', 'boston', 'california']
-cache_path = Path('.').resolve() / 'cache' 
+cache_path = Path('.').resolve() / 'cache' / EXP_DIR 
 cache = load_cache(cache_path, dataset_names)
 df_gaps = get_df_gaps(cache_path)
 

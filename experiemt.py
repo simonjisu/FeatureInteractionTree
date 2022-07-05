@@ -11,14 +11,6 @@ import os
 from collections import defaultdict
 import pandas as pd
 
-def load_cache(cache_path, dataset_names):
-    cache = defaultdict()
-    system = '_win' if os.name == 'nt' else ''
-    for ds_name in dataset_names:
-        with (cache_path / f'{ds_name}{system}.pickle').open('rb') as file:
-            res = pickle.load(file)
-        cache[ds_name] = res
-    return cache
 
 def experiment(seed, ds, data_folder, exps, infos=False):
     model_kwargs = {
@@ -80,9 +72,9 @@ def experiment(seed, ds, data_folder, exps, infos=False):
     logger.close()
     return res
 
-def main(infos=False, force_rerun=False):
+def main(exp_dir, infos=False, force_rerun=False):
     seed = 8
-    datasets = ['titanic', 'adult', 'boston', 'california']#, 'ames']
+    datasets = ['titanic', 'boston', 'california', 'adult'] #, 'ames']
 
     score_method_list = ['abs', 'abs_interaction', 'ratio']
     n_select_scores_list = [5, 10]
@@ -98,7 +90,7 @@ def main(infos=False, force_rerun=False):
     ))
 
     data_folder = './data'
-    cache_folder = Path('./cache').resolve()
+    cache_folder = Path('./cache').resolve() / exp_dir
     if infos:
         cache_folder = cache_folder / 'infos'
     if not cache_folder.exists():
@@ -114,9 +106,18 @@ def main(infos=False, force_rerun=False):
             with (cache_folder / filename).open('wb') as file:
                 pickle.dump(res, file)
 
-def record():
+def load_cache(cache_path, dataset_names):
+    cache = defaultdict()
+    system = '_win' if os.name == 'nt' else ''
+    for ds_name in dataset_names:
+        with (cache_path / f'{ds_name}{system}.pickle').open('rb') as file:
+            res = pickle.load(file)
+        cache[ds_name] = res
+    return cache
+
+def record(exp_dir):
     dataset_names = ['titanic', 'adult', 'boston', 'california']
-    cache = load_cache(Path('./cache').resolve(), dataset_names=dataset_names)
+    cache = load_cache(Path('./cache').resolve() / exp_dir, dataset_names=dataset_names)
 
     score_method_list = ['abs', 'abs_interaction', 'ratio']
     n_select_scores_list = [5, 10]
@@ -146,16 +147,18 @@ def record():
             prog_bar.update(1)
     prog_bar.close()
     df = pd.DataFrame(tree_gaps, columns=['dataset', 'exp_name', 'step', 'gaps'])
-    df.to_csv(Path('./cache').resolve() / 'all_results.csv', encoding='utf-8', index=False)
+    df.to_csv(Path('./cache').resolve() / exp_dir / 'all_results.csv', encoding='utf-8', index=False)
     df_time = pd.DataFrame(tree_times, columns=['dataset', 'exp_name', 'time_cost'])
-    df_time.to_csv(Path('./cache').resolve() / 'all_time_cost.csv', encoding='utf-8', index=False)
+    df_time.to_csv(Path('./cache').resolve() / exp_dir / 'all_time_cost.csv', encoding='utf-8', index=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--infos', action='store_true')
     parser.add_argument('--force_rerun', action='store_true')
     parser.add_argument('--record', action='store_true')
+    parser.add_argument('--exp_dir', type=str, default=None)
+
     args = parser.parse_args()
-    main(infos=args.infos, force_rerun=args.force_rerun)
+    main(exp_dir=args.exp_dir, infos=args.infos, force_rerun=args.force_rerun)
     if args.record:
-        record()
+        record(args.exp_dir)

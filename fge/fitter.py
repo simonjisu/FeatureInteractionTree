@@ -45,7 +45,7 @@ class PolyFitter():
         categorical_preprocessor = OneHotEncoder(
             handle_unknown='infrequent_if_exist', sparse=True
         ) 
-        categorical_preprocessor = FunctionTransformer(lambda x: x)
+        # categorical_preprocessor = FunctionTransformer(lambda x: x)
         numerical_preprocessor = StandardScaler()
         preprocessor = ColumnTransformer([
             ('onehot', categorical_preprocessor, categorical_columns),
