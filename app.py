@@ -14,7 +14,7 @@ from ds_desc import DESC
 import xgboost as xgb
 from fge import ShapInteractionTree, Dataset
 
-EXP_DIR = 'onehot_nointercept'
+EXP_DIR = 'onehot_intercept'  # onehot_nointercept
 st.set_page_config(layout="wide")
 
 # st.title('Feature Interaction Tree with SHAP Interaction Values')
