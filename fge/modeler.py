@@ -8,10 +8,24 @@ class ModelBuilder():
     def __init__(self):
         # model init
         self.objective_dict = {
-            'reg': ('reg:squarederror', r2_score), 
-            'binary': ('binary:logistic', accuracy_score),
-            'survival': ('survival:cox', c_statistic_harrell)
+            'reg': ('reg:squarederror', r2_score, 'rmse'), 
+            'binary': ('binary:logistic', accuracy_score, 'error'),
+            'survival': ('survival:cox', c_statistic_harrell, 'rmse')
         }
+
+    def cv(self, xgb_train, params, num_rounds, eval_metric, seed, nfold=3, early_stopping_rounds=10):
+        xgb_cv = xgb.cv(
+            dtrain=xgb_train, 
+            params=params, 
+            nfold=nfold,
+            num_boost_round=num_rounds, 
+            early_stopping_rounds=early_stopping_rounds, 
+            metrics=eval_metric, 
+            as_pandas=True, 
+            seed=seed, 
+        )
+        best_num_rounds = xgb_cv.iloc[-1].name
+        return best_num_rounds
 
     def train(
             self, 
@@ -20,9 +34,9 @@ class ModelBuilder():
             max_depth: int=8, 
             subsample: float=1.0, 
             seed: int=8,
-            num_rounds: int=1000
+            num_rounds: int=300
         ):
-        objective, metric_fn = self.objective_dict[dataset.task_type]
+        objective, metric_fn, eval_metric = self.objective_dict[dataset.task_type]
         params = {
             'eta': eta,
             'max_depth': max_depth,
@@ -30,19 +44,19 @@ class ModelBuilder():
             'subsample': subsample,
             'seed': seed
         }
-        xgb_train = xgb.DMatrix(dataset.data['X_train'], 
+        xgb_train = xgb.DMatrix(
+            dataset.data['X_train'], 
             label=dataset.data['y_train'],
-            #enable_categorical=True
         )
-        xgb_test = xgb.DMatrix(dataset.data['X_test'], 
+        xgb_test = xgb.DMatrix(
+            dataset.data['X_test'], 
             label=dataset.data['y_test'],
-            #enable_categorical=True
         )
-
+        self.best_num_rounds = self.cv(xgb_train, params, num_rounds, eval_metric, seed)
         model = xgb.train(
-            params, xgb_train, num_rounds, 
+            params, xgb_train, self.best_num_rounds, 
             evals=[(xgb_test, "test")], 
-            verbose_eval=int(num_rounds * 0.2)
+            verbose_eval=int(self.best_num_rounds * 0.2)
         )
         y_pred = model.predict(xgb_test)
         if dataset.task_type == 'binary':

@@ -164,7 +164,11 @@ with st.sidebar:
     """)
 
 exp_name = get_exp_name(score_method, n_select_scores, n_select_gap, nodes_to_run_method, filter_method)
-tree = cache[ds_name]['trees'][exp_name]['t'][-1]
+trees_dicts = cache[ds_name]['trees'][exp_name]
+origin_score = trees_dicts['origin_score']
+linear_score = trees_dicts['linear_score']
+tree = trees_dicts['t'][-1]
+
 dataset = cache[ds_name]['dataset']
 siv = cache[ds_name]['siv']
 sv = cache[ds_name]['shap_values']
@@ -177,7 +181,6 @@ shap_values = shap.Explanation(
     data=features,
     feature_names=dataset.feature_names
 )
-
 
 st.write("## Tree")
 tree_img = tree.show_tree(feature_names=dataset.feature_names)
@@ -209,10 +212,15 @@ filter_method_list = ['random', 'sort', 'prob']
 
 df_exps = df_gaps.loc[(df_gaps['dataset'] == ds_name), :]
 
-if op_nss and op_nsg and op_ntrm and op_fm:
+if op_sm and op_nss and op_nsg and op_ntrm and op_fm:
     cond = df_exps['method'].isin(op_sm) & df_exps['n_select_scores'].isin(op_nss) & df_exps['n_select_gap'].isin(op_nsg) & \
         df_exps['nodes_to_run_method'].isin(op_ntrm) & df_exps['filter_method'].isin(op_fm)
     df_draw = df_exps.loc[df_exps.index[cond], ['step', 'exp_name', 'gaps']]
     pivot_table = df_draw.pivot(index='step', columns='exp_name')['gaps']
     st.write(pivot_table.T)
-    st.line_chart(pd.DataFrame(pivot_table.values, index=pivot_table.index, columns=pivot_table.columns.values), use_container_width=True)
+    st.line_chart(
+        pd.DataFrame(pivot_table.values, index=pivot_table.index, columns=pivot_table.columns.values), 
+        width=720)
+else:
+    st.warning('Please select at least one value in each compnent')
+    st.stop()

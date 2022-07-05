@@ -131,7 +131,7 @@ class TreeBuilder():
         self.infos[k]['nodes_to_run'] = [nodes_to_run]
         self.infos[k]['gap'] = {
             'origin': self.polyfitter.original_score, 
-            # 'min': self.polyfitter.min_score,
+            'linear': self.polyfitter.linear_model_score,
         }
         start = time.time()
         self._build(siv_scores, n_select_scores, n_select_gap, k+1)

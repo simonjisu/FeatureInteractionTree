@@ -20,26 +20,22 @@ class PolyFitter():
             'binary': (LogisticRegression, accuracy_score, dict(fit_intercept=True, max_iter=1000)),
             'survival': (LinearRegression, c_statistic_harrell, dict(fit_intercept=True))
         }
-        # self.task_dict = {
-        #     'reg': (sm.formula.ols, r2_score),
-        #     'binary': (sm.formula.logit, accuracy_score),
-        #     'survival': (sm.formula.ols, c_statistic_harrell)
-        # }
+
         self.task_type = task_type
         self.task_model, self.task_metric, self.args = self.task_dict[task_type]
         self.data = data
         self.feature_names = data['X_train'].columns
-        # Preprocessor pipeline
-        # self.preprocess_pipeline()
 
         if original_score is None:
             self.original_score = self.fit_all(full=True)
         else:
             self.original_score = original_score
 
+        self.linear_model_score = self.get_linear_model_score()
+
     def get_preprocessor(self, X):
         numerical_columns_selector = selector(dtype_include=np.float64, dtype_exclude=object)
-        categorical_columns_selector = selector(dtype_include=np.int64)#pd.CategoricalDtype)
+        categorical_columns_selector = selector(dtype_include=np.int64) #pd.CategoricalDtype)
         numerical_columns = numerical_columns_selector(X)
         categorical_columns = categorical_columns_selector(X)
         categorical_preprocessor = OneHotEncoder(
@@ -53,32 +49,6 @@ class PolyFitter():
         ])
         feature_names = categorical_columns + numerical_columns
         return preprocessor, feature_names 
-
-    # def preprocess_pipeline(self):
-    #     numerical_columns_selector = selector(dtype_include=np.float64, dtype_exclude=object)
-    #     categorical_columns_selector = selector(dtype_include=np.int64)#pd.CategoricalDtype)
-    #     self.numerical_columns = numerical_columns_selector(self.data['X_train'])
-    #     self.categorical_columns = categorical_columns_selector(self.data['X_train'])
-    #     categorical_preprocessor = FunctionTransformer(lambda x: x)
-    #     numerical_preprocessor = StandardScaler()
-    #     self.preprocessor = ColumnTransformer([
-    #         ('onehot', categorical_preprocessor, self.categorical_columns),
-    #         ('standard', numerical_preprocessor, self.numerical_columns)
-    #     ])
-
-    #     self.feature_names = self.data['X_train'].columns
-    #     X_train = self.preprocessor.fit_transform(self.data['X_train'])
-    #     self.X_train = pd.DataFrame(X_train, index=self.data['X_train'].index, columns=self.feature_names)
-    #     X_test = self.preprocessor.transform(self.data['X_test'])
-    #     self.X_test = pd.DataFrame(X_test, index=self.data['X_test'].index, columns=self.feature_names)
-    #     self.y_train, self.y_test = self.data['y_train'], self.data['y_test']
-
-    # def get_formula(self, trials):
-    #     formula = 'y ~ ' + ' + '.join(self.feature_names)
-    #     for cmbs in trials:
-    #         c_names = [self.feature_names[i] for i in flatten(cmbs)]
-    #         formula += ' + ' + ':'.join(c_names)
-    #     return formula
 
     def get_new_X(self, X_original, trials): 
         X = X_original.copy()
@@ -117,3 +87,15 @@ class PolyFitter():
         performance_selected = self.fit_selected(trials)
         gap = self.get_gap(performance_selected)
         return gap
+
+    def get_linear_model_score(self):
+        X_train = self.data['X_train']
+        y_train = self.data['y_train']
+        X_test = self.data['X_test']
+        y_test = self.data['y_test']
+        preprocessor, _ = self.get_preprocessor(X_train)
+        model = make_pipeline(preprocessor, self.task_model(**self.args))
+        performance = self.fit(
+            model, X_train, X_test, y_train, y_test
+        )
+        return performance

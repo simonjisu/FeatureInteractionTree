@@ -14,17 +14,22 @@ import pandas as pd
 
 def experiment(seed, ds, data_folder, exps, infos=False):
     model_kwargs = {
-        'titanic': dict(eta=0.1, max_depth=8, subsample=1.0, seed=seed, num_rounds=100),
-        'adult': dict(eta=0.3, max_depth=8, subsample=1.0, seed=seed, num_rounds=200),
-        'california': dict(eta=0.3, max_depth=8, subsample=1.0, seed=seed, num_rounds=200),
-        'boston': dict(eta=0.1, max_depth=8, subsample=1.0, seed=seed, num_rounds=200),
-        'ames': dict(eta=0.1, max_depth=8, subsample=1.0, seed=seed, num_rounds=300),
+        'titanic': dict(eta=0.1, max_depth=8, subsample=1.0, seed=seed, num_rounds=500),
+        'adult': dict(eta=0.3, max_depth=8, subsample=1.0, seed=seed, num_rounds=500),
+        'california': dict(eta=0.1, max_depth=7, subsample=1.0, seed=seed, num_rounds=500),
+        'boston': dict(eta=0.1, max_depth=6, subsample=1.0, seed=seed, num_rounds=500),
+        'ames': dict(eta=0.1, max_depth=8, subsample=1.0, seed=seed, num_rounds=500),
     }
     dataset = Dataset(dataset_name=ds, data_folder=data_folder, seed=seed)
     model_builder = ModelBuilder()
     results = model_builder.train(dataset, **model_kwargs[ds])
+    
     performance = results['score']
     model = results['model']
+    # for record
+    model_args = model_kwargs[ds]
+    model_args['num_rounds'] = model_builder.best_num_rounds 
+
     tree_builder = TreeBuilder(model, dataset, original_score=performance)
     siv = tree_builder.shap_interaction_values(group_id=None)
     trees_dicts = {}
@@ -50,7 +55,9 @@ def experiment(seed, ds, data_folder, exps, infos=False):
         trees_dicts[exp_name] = {
             't': trees, 
             'gaps': trees[-1].get_performance_gap(), 
-            'time': tree_builder._record_time
+            'time': tree_builder._record_time,
+            'origin_score': tree_builder.infos[0]['gap']['origin'],
+            'linear_score': tree_builder.infos[0]['gap']['linear'],
         }
         # only add last tree gaps
 
@@ -62,12 +69,12 @@ def experiment(seed, ds, data_folder, exps, infos=False):
     if infos:
         res = {
             'dataset': dataset, 'model': model,'siv': siv, 'performance': performance,'trees': trees_dicts, 
-            'explainer': tree_builder.explainer, 'build_infos': build_infos
+            'explainer': tree_builder.explainer, 'build_infos': build_infos, 'model_args': model_args
         }
     else:
         res = {
-            'dataset': dataset,'model': model,'siv': siv, 'trees': trees_dicts,
-            'explainer': tree_builder.explainer
+            'dataset': dataset, 'model': model,'siv': siv, 'trees': trees_dicts,
+            'explainer': tree_builder.explainer, 'model_args': model_args
         }
     logger.close()
     return res
@@ -137,9 +144,13 @@ def record(exp_dir):
     for ds_name in dataset_names:
         for e in exps:
             exp_name = '_'.join(map(lambda x: str(x), e))
-            gaps = cache[ds_name]['trees'][exp_name]['gaps']
-            time_cost = cache[ds_name]['trees'][exp_name]['time']
-            tree_times.append( (ds_name, exp_name, time_cost) )
+            trees_dicts = cache[ds_name]['trees'][exp_name]
+            gaps = trees_dicts['gaps']
+            time_cost = trees_dicts['time']
+            origin_score = trees_dicts['origin_score']
+            linear_score = trees_dicts['linear_score']
+            model_args = trees_dicts['model_args']
+            tree_times.append( (ds_name, exp_name, time_cost, origin_score, linear_score, str(model_args)) )
             for i, g in gaps:
                 tree_gaps.append( (ds_name, exp_name, i, g) )
                 
@@ -148,7 +159,7 @@ def record(exp_dir):
     prog_bar.close()
     df = pd.DataFrame(tree_gaps, columns=['dataset', 'exp_name', 'step', 'gaps'])
     df.to_csv(Path('./cache').resolve() / exp_dir / 'all_results.csv', encoding='utf-8', index=False)
-    df_time = pd.DataFrame(tree_times, columns=['dataset', 'exp_name', 'time_cost'])
+    df_time = pd.DataFrame(tree_times, columns=['dataset', 'exp_name', 'time_cost', 'origin_score', 'linear_score', 'model_args'])
     df_time.to_csv(Path('./cache').resolve() / exp_dir / 'all_time_cost.csv', encoding='utf-8', index=False)
 
 if __name__ == '__main__':
