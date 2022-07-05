@@ -16,9 +16,9 @@ from typing import Dict, Any
 class PolyFitter():
     def __init__(self, task_type: str, data: Dict[str, Any], original_score: None | float):
         self.task_dict = {
-            'reg': (LinearRegression, r2_score, dict(fit_intercept=False)),
-            'binary': (LogisticRegression, accuracy_score, dict(fit_intercept=False, max_iter=300)),
-            'survival': (LinearRegression, c_statistic_harrell, dict(fit_intercept=False))
+            'reg': (LinearRegression, r2_score, dict(fit_intercept=True)),
+            'binary': (LogisticRegression, accuracy_score, dict(fit_intercept=True, max_iter=1000)),
+            'survival': (LinearRegression, c_statistic_harrell, dict(fit_intercept=True))
         }
         # self.task_dict = {
         #     'reg': (sm.formula.ols, r2_score),
@@ -44,7 +44,8 @@ class PolyFitter():
         categorical_columns = categorical_columns_selector(X)
         categorical_preprocessor = OneHotEncoder(
             handle_unknown='infrequent_if_exist', sparse=True
-        ) # FunctionTransformer(lambda x: x) drop='first', 
+        ) 
+        categorical_preprocessor = FunctionTransformer(lambda x: x)
         numerical_preprocessor = StandardScaler()
         preprocessor = ColumnTransformer([
             ('onehot', categorical_preprocessor, categorical_columns),

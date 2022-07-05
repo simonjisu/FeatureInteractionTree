@@ -161,7 +161,6 @@ class TreeBuilder():
                 self.infos[k]['nodes_to_run'] = []
                 self.infos[k]['gap'] = []
             
-            # deterministic selection
             # use heapq?
             all_gaps = []
             while prev_nodes_to_run:
@@ -173,7 +172,6 @@ class TreeBuilder():
                 if self.verbose:
                     print(f'Number of filtered keys: {len(filtered_keys)}')
                 
-                # Use
                 for cmbs in filtered_keys:
                     combined_keys = list(filter(lambda x: isinstance(x, tuple), nodes.keys()))
                     combined_keys_history = set()

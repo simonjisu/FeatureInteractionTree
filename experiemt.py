@@ -146,9 +146,9 @@ def record():
             prog_bar.update(1)
     prog_bar.close()
     df = pd.DataFrame(tree_gaps, columns=['dataset', 'exp_name', 'step', 'gaps'])
-    df.to_csv(Path('./cache').resolve() / 'all_results.csv', encodint='utf-8', index=False)
+    df.to_csv(Path('./cache').resolve() / 'all_results.csv', encoding='utf-8', index=False)
     df_time = pd.DataFrame(tree_times, columns=['dataset', 'exp_name', 'time_cost'])
-    df_time.to_csv(Path('./cache').resolve() / 'all_time_cost.csv', encodint='utf-8', index=False)
+    df_time.to_csv(Path('./cache').resolve() / 'all_time_cost.csv', encoding='utf-8', index=False)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
