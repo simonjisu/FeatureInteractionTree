@@ -98,7 +98,7 @@ class ShapInteractionTree():
                 v_key, e_key = self._get_node_edge_key(node, parent=node.parent)
                 G.add_node(node, label=self._fmt(node, feature_names), **self.show_kwargs['node'][v_key])
                 G.add_edge(node, node.parent, **self.show_kwargs['edge'][e_key])
-        # G.add_subgraph([node for node in G.nodes() if "+"not in node], rank="same")
+            G.add_subgraph([node for node in G.nodes() if "+"not in node], rank="same")
 
         return G
 
