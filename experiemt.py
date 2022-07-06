@@ -16,8 +16,8 @@ def experiment(seed, ds, data_folder, exps, infos=False):
     model_kwargs = {
         'titanic': dict(eta=0.1, max_depth=8, subsample=1.0, seed=seed, num_rounds=500),
         'adult': dict(eta=0.3, max_depth=8, subsample=1.0, seed=seed, num_rounds=500),
-        'california': dict(eta=0.1, max_depth=7, subsample=1.0, seed=seed, num_rounds=500),
-        'boston': dict(eta=0.1, max_depth=6, subsample=1.0, seed=seed, num_rounds=500),
+        'california': dict(eta=0.1, max_depth=8, subsample=1.0, seed=seed, num_rounds=500),
+        'boston': dict(eta=0.1, max_depth=8, subsample=1.0, seed=seed, num_rounds=500),
         'ames': dict(eta=0.1, max_depth=8, subsample=1.0, seed=seed, num_rounds=500),
     }
     dataset = Dataset(dataset_name=ds, data_folder=data_folder, seed=seed)
@@ -81,7 +81,8 @@ def experiment(seed, ds, data_folder, exps, infos=False):
 
 def main(exp_dir, infos=False, force_rerun=False):
     seed = 8
-    datasets = ['titanic', 'boston', 'california', 'adult'] #, 'ames']
+    datasets = ['boston', 'california', 'adult'] #, titanic 'ames']
+    
 
     score_method_list = ['abs', 'abs_interaction', 'ratio']
     n_select_scores_list = [5, 10]

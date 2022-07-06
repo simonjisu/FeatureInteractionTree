@@ -165,8 +165,8 @@ with st.sidebar:
 
 exp_name = get_exp_name(score_method, n_select_scores, n_select_gap, nodes_to_run_method, filter_method)
 trees_dicts = cache[ds_name]['trees'][exp_name]
-origin_score = trees_dicts['origin_score']
-linear_score = trees_dicts['linear_score']
+#origin_score = trees_dicts['origin_score']
+#linear_score = trees_dicts['linear_score']
 tree = trees_dicts['t'][-1]
 
 dataset = cache[ds_name]['dataset']
