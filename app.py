@@ -165,8 +165,11 @@ with st.sidebar:
 
 exp_name = get_exp_name(score_method, n_select_scores, n_select_gap, nodes_to_run_method, filter_method)
 trees_dicts = cache[ds_name]['trees'][exp_name]
-#origin_score = trees_dicts['origin_score']
-#linear_score = trees_dicts['linear_score']
+num_rounds = eval(cache[ds_name]['model_args'])['num_rounds']
+
+origin_score = trees_dicts['origin_score']
+linear_score = trees_dicts['linear_score']
+
 tree = trees_dicts['t'][-1]
 
 dataset = cache[ds_name]['dataset']
@@ -196,6 +199,12 @@ st_shap(shap.plots.bar(shap_values, max_display=20), height=400, width=700)
 st.write(DESC[ds_name])
 
 st.write('# Experiment Plots')
+
+st.write(f"""Model: 
+* Number of boost round = {num_rounds}
+* XGBoost model performance = {origin_score:.4f}
+* Linear model performance = {linear_score:.4f}
+""")
 
 op_sm = st.multiselect('Score Method', options=score_method_list)
 op_nss = st.multiselect('Maximum Numer of selecting candidates', options=n_select_scores_list)

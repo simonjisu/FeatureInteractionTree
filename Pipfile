@@ -30,6 +30,7 @@ statsmodels = "*"
 pygad = "*"
 torch = {version = "==1.11.0+cu113", index = "pytorch"}
 torchvision = {version = "==0.12.0+cu113", index = "pytorch"}
+interpret = "*"
 
 [requires]
 python_version = "3.10"

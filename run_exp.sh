@@ -1,0 +1,1 @@
+python -u experiment.py --force_rerun --record --exp_dir onehot_intercept

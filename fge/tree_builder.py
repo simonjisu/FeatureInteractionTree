@@ -14,7 +14,7 @@ from typing import Dict, Any, List
 from copy import deepcopy
 from collections import defaultdict
 from tqdm import tqdm
-from anytree import Node, TreeError
+from anytree import Node
 
 def cal_time(start, end):
     time_cost = end - start
@@ -168,7 +168,11 @@ class TreeBuilder():
                 nodes = prev_nodes.pop(0)
                 
                 scores = self.get_scores(siv_scores, nodes_to_run)
-                filtered_keys = self.filter_scores(scores, n_select_scores)
+                try:
+                    filtered_keys = self.filter_scores(scores, n_select_scores)
+                except:
+                    print(scores)
+                    break        
                 if self.verbose:
                     print(f'Number of filtered keys: {len(filtered_keys)}')
                 
@@ -239,7 +243,10 @@ class TreeBuilder():
             else:
                 keys, values = list(zip(*scores.items()))
                 prob = np.array(values) / np.array(values).sum()
-                idxes = np.random.choice(np.arange(len(prob)), size=(n_select_scores,), p=prob, replace=False)
+                if (prob != 0.0).sum() >= n_select_scores:
+                    idxes = np.random.choice(np.arange(len(prob)), size=(n_select_scores,), p=prob, replace=False)
+                else:
+                    idxes = np.arange(len(prob))[(prob != 0.0)]
                 filtered = [keys[i] for i in idxes]
         else:
             raise KeyError('`filter_method` should be "random", "sort" or "prob')
