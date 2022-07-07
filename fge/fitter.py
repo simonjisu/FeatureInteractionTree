@@ -1,12 +1,11 @@
 import numpy as np
 import pandas as pd
 from sklearn.pipeline import make_pipeline
-import statsmodels.api as sm
 
 from sklearn.metrics import r2_score, accuracy_score
 
 from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.preprocessing import PolynomialFeatures, OneHotEncoder, StandardScaler, FunctionTransformer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import make_column_selector as selector
 from sklearn.compose import ColumnTransformer
 

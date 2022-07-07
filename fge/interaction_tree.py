@@ -5,7 +5,7 @@ from io import BytesIO
 from PIL import Image as PILImage
 from anytree import Node, RenderTree, LevelGroupOrderIter
 
-class ShapInteractionTree():
+class FeatureInteractionTree():
     def __init__(self, root):
         assert isinstance(root, Node), f'no a proper type of `root`: should be {Node}'
         self.root = root

@@ -7,7 +7,6 @@ def g_base(siv: np.ndarray, build_global: bool):
     `build_global` will work differently compare to `g_abs`, 
     because it applies the absoulute values after calculate mean values
 
-
     Args:
         siv (np.ndarray): shap interaction values, size of NxFxF, 
             where F is number of features, N is number of instances 

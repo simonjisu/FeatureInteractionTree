@@ -8,7 +8,7 @@ import random
 from .functions import *
 from .utils import flatten
 from .fitter import PolyFitter
-from .interaction_tree import ShapInteractionTree
+from .interaction_tree import FeatureInteractionTree
 
 from typing import Dict, Any, List
 from copy import deepcopy
@@ -16,7 +16,7 @@ from collections import defaultdict
 from tqdm import tqdm
 from anytree import Node
 
-def cal_time(start, end):
+def cal_time(start: float, end: float):
     time_cost = end - start
     mins = int(time_cost//60)
     secs = time_cost - mins*60
@@ -182,16 +182,12 @@ class TreeBuilder():
                     combined_keys_history = set()
                     list(flatten(combined_keys, res=combined_keys_history))
                     combined_keys_history = list(combined_keys_history)
-                    # trials = list(self.feature_names) + combined_keys_history + [cmbs]
                     trials = combined_keys_history + [cmbs]
                     gap = self.polyfitter.get_interaction_gap(trials)
                     gaps.append((gap, cmbs, deepcopy(nodes)))
                 gap_scores = np.array(list(map(lambda x: x[0], all_gaps)))
                 best_idx = np.argmin(gap_scores)
                 all_gaps.append(gaps[best_idx])
-                    # if len(all_gaps) > n_select_gap:
-                    #     new_gaps = np.array(list(map(lambda x: x[0], all_gaps)))
-                    #     all_gaps = [all_gaps[i] for i in new_gaps.argsort() if i != n_select_gap]
 
             for gap, cmbs, nodes in all_gaps:
                 value, interaction = self.get_value_and_interaction(siv_scores, cmbs)
@@ -276,7 +272,6 @@ class TreeBuilder():
         return res
 
     def _random_selection(self, keys, n_select: int):
-        # keys_to_select = deepcopy(keys)
         if len(keys) <= n_select:
             return keys
         idxes = np.random.choice(np.arange(len(keys)), size=(n_select,), replace=False)
@@ -312,7 +307,7 @@ class TreeBuilder():
         trees = []
         for node_record in last_records['nodes']:
             roots = self._extract_root(node_record)
-            trees.append([ShapInteractionTree(r) for r in roots])
+            trees.append([FeatureInteractionTree(r) for r in roots])
         return trees
 
     def _get_best_tree(self):
@@ -320,4 +315,4 @@ class TreeBuilder():
         best_idx = np.argmax(last_records['gap'])
         node_record = last_records['nodes'][best_idx]
         roots = self._extract_root(node_record)
-        return [ShapInteractionTree(r) for r in roots]
+        return [FeatureInteractionTree(r) for r in roots]
