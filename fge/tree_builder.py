@@ -176,6 +176,7 @@ class TreeBuilder():
                 if self.verbose:
                     print(f'Number of filtered keys: {len(filtered_keys)}')
                 
+                gaps = []
                 for cmbs in filtered_keys:
                     combined_keys = list(filter(lambda x: isinstance(x, tuple), nodes.keys()))
                     combined_keys_history = set()
@@ -184,10 +185,13 @@ class TreeBuilder():
                     # trials = list(self.feature_names) + combined_keys_history + [cmbs]
                     trials = combined_keys_history + [cmbs]
                     gap = self.polyfitter.get_interaction_gap(trials)
-                    all_gaps.append((gap, cmbs, deepcopy(nodes)))
-                    if len(all_gaps) > n_select_gap:
-                        new_gaps = np.array(list(map(lambda x: x[0], all_gaps)))
-                        all_gaps = [all_gaps[i] for i in new_gaps.argsort() if i != n_select_gap]
+                    gaps.append((gap, cmbs, deepcopy(nodes)))
+                gap_scores = np.array(list(map(lambda x: x[0], all_gaps)))
+                best_idx = np.argmin(gap_scores)
+                all_gaps.append(gaps[best_idx])
+                    # if len(all_gaps) > n_select_gap:
+                    #     new_gaps = np.array(list(map(lambda x: x[0], all_gaps)))
+                    #     all_gaps = [all_gaps[i] for i in new_gaps.argsort() if i != n_select_gap]
 
             for gap, cmbs, nodes in all_gaps:
                 value, interaction = self.get_value_and_interaction(siv_scores, cmbs)
