@@ -1,4 +1,4 @@
-# Feature Interaction Tree
+# FIT: Transparent Modeling for Black-box via Feature Interaction Trees
 
 **Demo**: [https://simonjisu-featureinteractiontree-app-8shmvb.streamlitapp.com](https://simonjisu-featureinteractiontree-app-8shmvb.streamlitapp.com/) 
 
